@@ -6,6 +6,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/biome"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/generator/feature"
 	"github.com/df-mc/dragonfly/server/world/generator/noise"
 )
 
@@ -14,6 +15,7 @@ type Nether struct {
 	seed       int64
 	noise3D    *noise.OctaveNoise
 	biomeNoise *noise.OctaveNoise
+	ores       *feature.NetherOreFeature
 
 	netherrack uint32
 	lava       uint32
@@ -42,6 +44,7 @@ func NewNetherWithRegistry(seed int64, reg world.BlockRegistry) *Nether {
 		seed:       seed,
 		noise3D:    noise.NewOctavePerlinFromSeed(seed^0x4e657468, 4, 2.0, 0.5), // "Neth"
 		biomeNoise: noise.NewOctavePerlinFromSeed(seed^0x42696f6d, 2, 2.0, 0.5), // "Biom"
+		ores:       feature.NewNetherOreFeature(reg),
 
 		netherrack: reg.BlockRuntimeID(block.Netherrack{}),
 		lava:       reg.BlockRuntimeID(block.Lava{Still: true, Depth: 8}),
@@ -147,6 +150,9 @@ func (n *Nether) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 			}
 		}
 	}
+
+	// Scatter mineral ore veins according to Nether distribution curves
+	n.ores.Populate(c, int(pos.X()), int(pos.Z()), n.seed)
 }
 
 // dither returns deterministic boolean for bedrock stratification dithering.
