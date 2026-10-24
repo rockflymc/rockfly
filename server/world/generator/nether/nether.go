@@ -74,7 +74,7 @@ func (n *Nether) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 
 			// Resolve Nether biome from 2D continuous noise
 			bVal := n.biomeNoise.SampleNormalized2D(float64(wx)*0.005, float64(wz)*0.005)
-			bID := n.wastesID
+			var bID uint32
 			switch {
 			case bVal < -0.4:
 				bID = n.soulValleyID
@@ -117,11 +117,12 @@ func (n *Nether) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 
 				// 2. 3D Netherrack cavern volumetric density
 				var baseDensity float64
-				if y < 10 {
+				switch {
+				case y < 10:
 					baseDensity = float64(10-y) * 0.2
-				} else if y > 115 {
+				case y > 115:
 					baseDensity = float64(y-115) * 0.2
-				} else {
+				default:
 					baseDensity = -0.25
 				}
 
