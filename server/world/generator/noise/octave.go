@@ -27,8 +27,8 @@ func NewOctavePerlin(r Random, octaves int, lacunarity, persistence float64) *Oc
 	}
 
 	entries := make([]octaveEntry, octaves)
-	var freq float64 = 1.0
-	var amp float64 = 1.0
+	freq := 1.0
+	amp := 1.0
 	var total float64
 
 	for i := range octaves {

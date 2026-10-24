@@ -121,12 +121,13 @@ func grad(hash uint8, x, y, z float64) float64 {
 		u = y
 	}
 
-	v := y
-	if h < 4 {
+	var v float64
+	switch {
+	case h < 4:
 		v = y
-	} else if h == 12 || h == 14 {
+	case h == 12 || h == 14:
 		v = x
-	} else {
+	default:
 		v = z
 	}
 
