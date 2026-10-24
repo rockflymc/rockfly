@@ -175,12 +175,12 @@ func TestRedstoneEngineInvalidateAround(t *testing.T) {
 	engine.invalidateAround(pos, changed, RedstoneUpdateCauseBlockUpdate, cube.Range{0, 1})
 
 	want := map[cube.Pos]redstoneDirty{
-		{8, 0, 8}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
-		{9, 0, 8}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
-		{7, 0, 8}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
-		{8, 1, 8}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
-		{8, 0, 9}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
-		{8, 0, 7}: {changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{8, 0, 8}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{9, 0, 8}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{7, 0, 8}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{8, 1, 8}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{8, 0, 9}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
+		{8, 0, 7}: redstoneDirty{changed: changed, hasChanged: true, source: changed, hasSource: true, cause: RedstoneUpdateCauseBlockUpdate},
 	}
 	if len(engine.dirty) != len(want) {
 		t.Fatalf("dirty positions = %v, want %v", engine.dirty, want)
