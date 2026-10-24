@@ -3,6 +3,9 @@
 .zed/
 .vscode/
 
+# Build artifacts
+*.exe
+
 # Dragonfly & Rockfly runtime files
 **/world/
 **/players/
@@ -10,6 +13,9 @@
 **/logs/
 **/.rockfly_history
 /dist/
+ops.json
+banned-players.json
+banned-ips.json
 
 # NetherNet server identity keys
 /keys

@@ -26,6 +26,11 @@ func (s Source) Name() string {
 	return "CONSOLE"
 }
 
+// IsConsole returns true, identifying this source as the terminal console.
+func (s Source) IsConsole() bool {
+	return true
+}
+
 // Position returns the origin vector.
 func (s Source) Position() mgl64.Vec3 {
 	return mgl64.Vec3{}
