@@ -301,8 +301,8 @@ func (p *VegetationPlacer) DecorateChunk(c *chunk.Chunk, chunkX, chunkZ int, see
 			ground := c.Block(uint8(lx), int16(surfaceY), uint8(lz), 0)
 			above := uint16(surfaceY + 1)
 
-			switch {
-			case ground == p.grass:
+			switch ground {
+			case p.grass:
 				roll := r.Float64()
 				switch {
 				case roll < 0.25:
@@ -356,7 +356,7 @@ func (p *VegetationPlacer) DecorateChunk(c *chunk.Chunk, chunkX, chunkZ int, see
 					c.SetBlock(uint8(lx), int16(above), uint8(lz), 0, p.melon)
 				}
 
-			case ground == p.sand:
+			case p.sand:
 				// Cacti in desert
 				if r.Float64() < 0.03 && lx > 0 && lx < 15 && lz > 0 && lz < 15 {
 					height := 1 + r.IntN(3)
