@@ -7,6 +7,7 @@ import (
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/generator/carver"
 	"github.com/df-mc/dragonfly/server/world/generator/climate"
 )
 
@@ -16,6 +17,7 @@ type Overworld struct {
 	climate *climate.Sampler
 	voronoi *climate.Voronoi
 	density *DensityEvaluator
+	carver  *carver.NoiseCarver
 	pool    sync.Pool
 
 	stone     uint32
@@ -36,12 +38,14 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 	s := climate.NewSampler(seed)
 	v := climate.NewVoronoi(s, seed)
 	d := NewDensityEvaluator(seed, s)
+	crv := carver.NewNoiseCarverWithRegistry(seed, reg)
 
 	return &Overworld{
 		seed:    seed,
 		climate: s,
 		voronoi: v,
 		density: d,
+		carver:  crv,
 		pool: sync.Pool{
 			New: func() any {
 				return &CellGrid{}
@@ -67,6 +71,9 @@ func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 
 	// Interpolate blocks into chunk column
 	InterpolateChunk(c, grid, o.stone, o.deepslate, o.bedrock, o.water)
+
+	// Carve subterranean cheese/spaghetti/noodle caves and aquifers
+	o.carver.CarveChunk(chunkX, chunkZ, c)
 
 	// Populate authentic biomes at quarter-resolution intervals
 	originX := chunkX << 4
