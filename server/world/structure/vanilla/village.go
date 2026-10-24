@@ -182,12 +182,13 @@ func buildVillageFarm(tmpl *structure.Template, startX, startZ int, log, farm, w
 	for x := startX; x <= startX+9; x++ {
 		for z := startZ; z <= startZ+8; z++ {
 			isBorder := x == startX || x == startX+9 || z == startZ || z == startZ+8
-			if isBorder {
+			switch {
+			case isBorder:
 				tmpl.SetBlock(cube.Pos{x, 0, z}, log)
-			} else if z == startZ+4 {
+			case z == startZ+4:
 				// Central water channel
 				tmpl.SetBlock(cube.Pos{x, 0, z}, water)
-			} else {
+			default:
 				tmpl.SetBlock(cube.Pos{x, 0, z}, farm)
 			}
 		}
