@@ -129,6 +129,11 @@ func (w *World) BlockRegistry() BlockRegistry {
 	return w.conf.Blocks
 }
 
+// Generator returns the Generator used to generate new chunks for the World.
+func (w *World) Generator() Generator {
+	return w.conf.Generator
+}
+
 // execFunc is a function that performs a synchronised transaction on a World.
 type execFunc func(tx *Tx)
 

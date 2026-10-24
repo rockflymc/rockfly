@@ -109,3 +109,8 @@ func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 func (o *Overworld) DefaultSpawn(dim world.Dimension) cube.Pos {
 	return cube.Pos{0, 64, 0}
 }
+
+// Seed returns the world generation seed.
+func (o *Overworld) Seed() int64 {
+	return o.seed
+}

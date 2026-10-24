@@ -262,3 +262,26 @@ func TestWhitelistCommand(t *testing.T) {
 		t.Errorf("expected whitelist to be disabled after /whitelist off")
 	}
 }
+
+func TestLocateCommand(t *testing.T) {
+	locateCmd, ok := cmd.ByAlias("locate")
+	if !ok {
+		t.Fatalf("locate command not found")
+	}
+
+	w := world.New()
+	defer w.Close()
+	src := &testCaptureSource{name: "CONSOLE"}
+
+	task := w.Do(func(tx *world.Tx) {
+		locateCmd.Execute("structure village", src, tx)
+	})
+	<-task.Done()
+
+	if len(src.messages) == 0 {
+		t.Fatalf("expected message from locate command, got none (errors: %v)", src.errors)
+	}
+	if !strings.Contains(src.messages[0], "The nearest village is at") {
+		t.Fatalf("unexpected locate message: %v", src.messages[0])
+	}
+}
