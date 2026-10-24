@@ -15,14 +15,16 @@ import (
 
 // Overworld implements world.Generator for authentic 1.18+ Bedrock Overworld generation.
 type Overworld struct {
-	seed    int64
-	climate *climate.Sampler
-	voronoi *climate.Voronoi
-	density *DensityEvaluator
-	carver  *carver.NoiseCarver
-	surface *surface.RuleBuilder
-	ores    *feature.OverworldOreFeature
-	pool    sync.Pool
+	seed       int64
+	climate    *climate.Sampler
+	voronoi    *climate.Voronoi
+	density    *DensityEvaluator
+	carver     *carver.NoiseCarver
+	surface    *surface.RuleBuilder
+	ores       *feature.OverworldOreFeature
+	caves      *feature.CaveFeaturePlacer
+	vegetation *feature.VegetationPlacer
+	pool       sync.Pool
 
 	stone     uint32
 	deepslate uint32
@@ -45,15 +47,19 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 	crv := carver.NewNoiseCarverWithRegistry(seed, reg)
 	srf := surface.NewRuleBuilderWithRegistry(seed, reg)
 	oreFeat := feature.NewOverworldOreFeature(reg)
+	caveFeat := feature.NewCaveFeaturePlacer(reg)
+	vegFeat := feature.NewVegetationPlacer(reg)
 
 	return &Overworld{
-		seed:    seed,
-		climate: s,
-		voronoi: v,
-		density: d,
-		carver:  crv,
-		surface: srf,
-		ores:    oreFeat,
+		seed:       seed,
+		climate:    s,
+		voronoi:    v,
+		density:    d,
+		carver:     crv,
+		surface:    srf,
+		ores:       oreFeat,
+		caves:      caveFeat,
+		vegetation: vegFeat,
 		pool: sync.Pool{
 			New: func() any {
 				return &CellGrid{}
@@ -110,6 +116,12 @@ func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 
 	// Scatter mineral ore veins according to Bedrock 1.18+ distribution curves
 	o.ores.Populate(c, chunkX, chunkZ, o.seed)
+
+	// Decorate subterranean caves with stalactites, stalagmites, moss and geodes
+	o.caves.DecorateChunk(c, chunkX, chunkZ, o.seed)
+
+	// Scatter surface vegetation, trees, flowers, cacti, and crops
+	o.vegetation.DecorateChunk(c, chunkX, chunkZ, o.seed)
 }
 
 // DefaultSpawn returns a reasonable world spawn position near the origin.
