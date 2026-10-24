@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/console"
 	"github.com/pelletier/go-toml"
 )
 
@@ -227,12 +228,31 @@ func (srv *Server) SetupGracefulShutdown(log *slog.Logger) {
 }
 
 // Run executes the complete turnkey server: bootstraps, starts listeners,
-// accepts incoming players in a loop, and cleanly terminates on exit.
+// launches the interactive console REPL, accepts incoming players in a loop,
+// and cleanly terminates on exit.
 func Run(opts ...LifecycleOptions) error {
-	srv, err := Bootstrap(opts...)
+	opt := DefaultLifecycleOptions()
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	// Setup colorful console logger
+	consoleHandler := console.NewHandler(console.HandlerOptions{
+		Level:   slog.LevelInfo,
+		LogsDir: opt.LogsDir,
+	})
+	logger := slog.New(consoleHandler)
+	slog.SetDefault(logger)
+	opt.Logger = logger
+
+	srv, err := Bootstrap(opt)
 	if err != nil {
 		return err
 	}
+
+	repl := console.NewREPL(os.Stdin, logger, ".rockfly_history")
+	repl.Start(srv)
+	defer repl.Close()
 
 	srv.Listen()
 	for p := range srv.Accept() {

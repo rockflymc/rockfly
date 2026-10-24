@@ -3,10 +3,13 @@
 .zed/
 .vscode/
 
-# Dragonfly
-/world/
-/players/
+# Dragonfly & Rockfly runtime files
+**/world/
+**/players/
 /resources/
+**/logs/
+**/.rockfly_history
+/dist/
 
 # NetherNet server identity keys
 /keys
