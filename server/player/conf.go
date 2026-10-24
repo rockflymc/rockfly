@@ -87,6 +87,16 @@ func (cfg Config) Apply(data *world.EntityData) {
 		alwaysShowNameTag:   true,
 		fireTicks:           conf.FireTicks,
 		fallDistance:        conf.FallDistance,
+		op:                  DefaultOperatorManager().IsOp(conf.Name) || (conf.UUID != uuid.Nil && DefaultOperatorManager().IsOp(conf.UUID.String())),
+		opLevel:             DefaultOperatorManager().OpLevel(conf.Name),
+	}
+	if pdata.op && pdata.opLevel == 0 {
+		if conf.UUID != uuid.Nil {
+			pdata.opLevel = DefaultOperatorManager().OpLevel(conf.UUID.String())
+		}
+		if pdata.opLevel == 0 {
+			pdata.opLevel = 4
+		}
 	}
 	playerUUID := conf.UUID
 	pdata.portalTravel = &entity.PortalTravelComputer{
