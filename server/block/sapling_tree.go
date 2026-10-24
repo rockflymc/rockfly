@@ -1317,6 +1317,11 @@ func (t poplarTrunk) place(tx *world.Tx, pos cube.Pos, height int, wood WoodType
 
 // growTree grows the tree of the sapling type passed at the position passed, reporting whether it grew. Trees grown
 // from a two by two square of saplings are grown from the north west corner of that square.
+// GrowTree grows the tree of the sapling type passed at pos in tx, reporting whether it was placed.
+func GrowTree(t SaplingType, pos cube.Pos, tx *world.Tx) bool {
+	return growTree(t, pos, tx)
+}
+
 func growTree(t SaplingType, pos cube.Pos, tx *world.Tx) bool {
 	wood, leaves := t.Wood(), t.Leaves()
 	if t == PoplarSapling() {
