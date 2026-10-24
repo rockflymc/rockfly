@@ -222,3 +222,43 @@ func TestAdminPermissionsCheck(t *testing.T) {
 		t.Errorf("operator user should be allowed admin commands")
 	}
 }
+
+func TestWhitelistCommand(t *testing.T) {
+	wlCmd, ok := cmd.ByAlias("whitelist")
+	if !ok {
+		t.Fatalf("whitelist command not found")
+	}
+
+	consoleSrc := console.NewSource(slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)))
+
+	// Test on
+	wlCmd.Execute("on", consoleSrc, nil)
+	if !player.WhitelistEnabled() {
+		t.Errorf("expected whitelist to be enabled after /whitelist on")
+	}
+
+	// Test add
+	wlCmd.Execute("add Notch", consoleSrc, nil)
+	if !player.DefaultWhitelistManager().IsWhitelisted("Notch", "") {
+		t.Errorf("expected Notch to be whitelisted after /whitelist add Notch")
+	}
+
+	// Test list
+	src := &testCaptureSource{name: "CONSOLE"}
+	wlCmd.Execute("list", src, nil)
+	if len(src.messages) == 0 || !strings.Contains(src.messages[0], "Notch") {
+		t.Errorf("expected whitelist list output to contain Notch, got %v", src.messages)
+	}
+
+	// Test remove
+	wlCmd.Execute("remove Notch", consoleSrc, nil)
+	if player.DefaultWhitelistManager().IsWhitelisted("Notch", "") {
+		t.Errorf("expected Notch to be removed after /whitelist remove Notch")
+	}
+
+	// Test off
+	wlCmd.Execute("off", consoleSrc, nil)
+	if player.WhitelistEnabled() {
+		t.Errorf("expected whitelist to be disabled after /whitelist off")
+	}
+}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/df-mc/dragonfly/server/cmd/admin"
 	"github.com/df-mc/dragonfly/server/console"
+	"github.com/df-mc/dragonfly/server/player"
 	"github.com/pelletier/go-toml"
 )
 
@@ -131,6 +132,19 @@ func EnsureServerProperties(opts LifecycleOptions) error {
 		}
 		if opts.Logger != nil {
 			opts.Logger.Info("Created default server.properties with standard vanilla settings.")
+		}
+	}
+
+	if data, err := os.ReadFile(propFile); err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "white-list=") {
+				val := strings.TrimPrefix(line, "white-list=")
+				if strings.EqualFold(val, "true") {
+					player.SetWhitelistEnabled(true)
+				}
+			}
 		}
 	}
 	return nil
