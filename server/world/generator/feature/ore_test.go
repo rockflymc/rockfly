@@ -216,10 +216,10 @@ func TestNetherOrePopulation(t *testing.T) {
 	for x := range uint8(16) {
 		for z := range uint8(16) {
 			for y := int16(10); y < 118; y++ {
-				b := c.Block(x, y, z, 0)
-				if b == quartzID {
+				switch b := c.Block(x, y, z, 0); b {
+				case quartzID:
 					quartzCount++
-				} else if b == debrisID {
+				case debrisID:
 					debrisCount++
 				}
 			}

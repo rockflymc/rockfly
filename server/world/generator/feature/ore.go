@@ -11,14 +11,14 @@ import (
 
 // OreConfiguration specifies placement parameters and block replacement targets for an ore vein.
 type OreConfiguration struct {
-	Name                string
-	StoneOreBlock       uint32
-	DeepslateOreBlock   uint32
-	NetherOreBlock      uint32
-	VeinSize            int
-	BatchesPerChunk     int
-	Distribution        Distribution
-	DiscardOnAirChance  float64
+	Name               string
+	StoneOreBlock      uint32
+	DeepslateOreBlock  uint32
+	NetherOreBlock     uint32
+	VeinSize           int
+	BatchesPerChunk    int
+	Distribution       Distribution
+	DiscardOnAirChance float64
 }
 
 // OrePlacer evaluates and splats ore veins into generating chunk columns.
@@ -89,8 +89,8 @@ func (p *OrePlacer) PlaceVein(c *chunk.Chunk, localX, y, localZ int, cfg OreConf
 		cz := z1 + (z2-z1)*progress
 
 		sizeFactor := (r.Float64() * n / 16.0)
-		radiusH := (math.Sin(math.Pi*progress) + 1.0)*sizeFactor + 1.0
-		radiusV := (math.Sin(math.Pi*progress) + 1.0)*sizeFactor + 1.0
+		radiusH := (math.Sin(math.Pi*progress)+1.0)*sizeFactor + 1.0
+		radiusV := (math.Sin(math.Pi*progress)+1.0)*sizeFactor + 1.0
 
 		minX := int(math.Floor(cx - radiusH))
 		maxX := int(math.Ceil(cx + radiusH))
