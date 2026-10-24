@@ -44,10 +44,10 @@ type Handler struct {
 
 // HandlerOptions configures the ConsoleHandler.
 type HandlerOptions struct {
-	Level    slog.Level
-	Stdout   io.Writer
-	LogsDir  string
-	LogFile  string
+	Level   slog.Level
+	Stdout  io.Writer
+	LogsDir string
+	LogFile string
 }
 
 // NewHandler creates a new ConsoleHandler.
@@ -155,7 +155,10 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	newGroups := append(h.groups, name)
+	newGroups := make([]string, len(h.groups)+1)
+	copy(newGroups, h.groups)
+	newGroups[len(h.groups)] = name
+
 	return &Handler{
 		stdout:     h.stdout,
 		fileWriter: h.fileWriter,

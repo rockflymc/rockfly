@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,12 +13,12 @@ import (
 )
 
 type mockServer struct {
-	closed bool
+	closed atomic.Bool
 }
 
 func (m *mockServer) World() *world.World { return nil }
 func (m *mockServer) Close() error {
-	m.closed = true
+	m.closed.Store(true)
 	return nil
 }
 
@@ -79,13 +80,13 @@ func TestREPLExecuteStop(t *testing.T) {
 	r := NewREPL(bytes.NewBuffer(nil), slog.Default(), "")
 
 	r.ExecuteLine("stop", mock)
-	if !mock.closed {
+	if !mock.closed.Load() {
 		t.Errorf("expected server to be closed after 'stop' command")
 	}
 
 	mock2 := &mockServer{}
 	r.ExecuteLine("/exit", mock2)
-	if !mock2.closed {
+	if !mock2.closed.Load() {
 		t.Errorf("expected server to be closed after '/exit' command")
 	}
 }
@@ -102,7 +103,7 @@ func TestREPLInteractiveLoop(t *testing.T) {
 	// Give goroutine a moment to read and process
 	time.Sleep(50 * time.Millisecond)
 
-	if !mock.closed {
+	if !mock.closed.Load() {
 		t.Errorf("expected mock server to be closed via interactive pipe")
 	}
 
