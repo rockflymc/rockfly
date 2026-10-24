@@ -9,6 +9,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/df-mc/dragonfly/server/world/generator/carver"
 	"github.com/df-mc/dragonfly/server/world/generator/climate"
+	"github.com/df-mc/dragonfly/server/world/generator/surface"
 )
 
 // Overworld implements world.Generator for authentic 1.18+ Bedrock Overworld generation.
@@ -18,6 +19,7 @@ type Overworld struct {
 	voronoi *climate.Voronoi
 	density *DensityEvaluator
 	carver  *carver.NoiseCarver
+	surface *surface.RuleBuilder
 	pool    sync.Pool
 
 	stone     uint32
@@ -39,6 +41,7 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 	v := climate.NewVoronoi(s, seed)
 	d := NewDensityEvaluator(seed, s)
 	crv := carver.NewNoiseCarverWithRegistry(seed, reg)
+	srf := surface.NewRuleBuilderWithRegistry(seed, reg)
 
 	return &Overworld{
 		seed:    seed,
@@ -46,6 +49,7 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 		voronoi: v,
 		density: d,
 		carver:  crv,
+		surface: srf,
 		pool: sync.Pool{
 			New: func() any {
 				return &CellGrid{}
@@ -96,6 +100,9 @@ func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 			}
 		}
 	}
+
+	// Apply rule-based surface builders and bedrock stratification
+	o.surface.BuildSurface(chunkX, chunkZ, c)
 }
 
 // DefaultSpawn returns a reasonable world spawn position near the origin.
