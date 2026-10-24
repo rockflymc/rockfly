@@ -16,6 +16,7 @@
 ops.json
 banned-players.json
 banned-ips.json
+whitelist.json
 
 # NetherNet server identity keys
 /keys

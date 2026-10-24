@@ -22,6 +22,7 @@ import (
 	"github.com/df-mc/dragonfly/server/internal/iteminternal"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
 	_ "github.com/df-mc/dragonfly/server/item" // Imported for maintaining correct initialisation order.
+	"github.com/df-mc/dragonfly/server/network"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/df-mc/dragonfly/server/player/chat"
 	"github.com/df-mc/dragonfly/server/player/skin"
@@ -371,6 +372,12 @@ func (srv *Server) listen(l Listener) {
 			return
 		}
 
+		if allowed, msg := network.DefaultFilter().Allow(c.RemoteAddr()); !allowed {
+			_ = l.Disconnect(c, msg)
+			srv.conf.Log.Debug("connection rejected by network filter", "raddr", c.RemoteAddr(), "reason", msg)
+			continue
+		}
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -471,6 +478,7 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 	if banned, reason := player.DefaultBanManager().IsIPBanned(host); banned {
 		_ = l.Disconnect(conn, "You are IP-banned from this server: "+reason)
 		srv.conf.Log.Debug("spawn rejected: ip banned", "raddr", conn.RemoteAddr(), "reason", reason)
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 
@@ -478,17 +486,27 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 	if banned, reason := player.DefaultBanManager().IsPlayerBanned(identity.DisplayName); banned {
 		_ = l.Disconnect(conn, "You are banned from this server: "+reason)
 		srv.conf.Log.Debug("spawn rejected: player banned by name", "name", identity.DisplayName, "reason", reason)
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 	if banned, reason := player.DefaultBanManager().IsPlayerBanned(identity.Identity); banned {
 		_ = l.Disconnect(conn, "You are banned from this server: "+reason)
 		srv.conf.Log.Debug("spawn rejected: player banned by uuid", "uuid", identity.Identity, "reason", reason)
+		network.DefaultFilter().Release(conn.RemoteAddr())
+		return
+	}
+
+	if player.WhitelistEnabled() && !player.DefaultWhitelistManager().IsWhitelisted(identity.DisplayName, identity.Identity) && !player.DefaultOperatorManager().IsOp(identity.DisplayName) && !player.DefaultOperatorManager().IsOp(identity.Identity) {
+		_ = l.Disconnect(conn, "You are not whitelisted on this server!")
+		srv.conf.Log.Debug("spawn rejected: not whitelisted", "name", identity.DisplayName, "raddr", conn.RemoteAddr())
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 
 	if srv.PlayerCount() >= srv.MaxPlayerCount() && !player.DefaultOperatorManager().BypassesPlayerLimit(identity.DisplayName) && !player.DefaultOperatorManager().BypassesPlayerLimit(identity.Identity) {
 		_ = l.Disconnect(conn, "Server is full!")
 		srv.conf.Log.Debug("spawn rejected: server full", "raddr", conn.RemoteAddr())
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 
@@ -513,11 +531,13 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 		_ = l.Disconnect(conn, "Connection timeout.")
 
 		srv.conf.Log.Debug("spawn failed: "+err.Error(), "raddr", conn.RemoteAddr())
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 	if _, ok := srv.Player(id); ok {
 		_ = l.Disconnect(conn, "Already logged in.")
 		srv.conf.Log.Debug("spawn failed: already logged in", "raddr", conn.RemoteAddr())
+		network.DefaultFilter().Release(conn.RemoteAddr())
 		return
 	}
 	_ = conn.WritePacket(&packet.ItemRegistry{Items: srv.customItems})
@@ -578,6 +598,9 @@ func (srv *Server) handleSessionClose(tx *world.Tx, c session.Controllable) {
 	_, ok := srv.p[c.UUID()]
 	delete(srv.p, c.UUID())
 	srv.pmu.Unlock()
+	if p, ok := c.(*player.Player); ok && p.Addr() != nil {
+		network.DefaultFilter().Release(p.Addr())
+	}
 	if !ok {
 		// When a player disconnects immediately after a session is started, it
 		// might not be added to the players map yet. This is expected, but we
