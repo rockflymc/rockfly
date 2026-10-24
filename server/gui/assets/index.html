@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>Rockfly Server Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .badge-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      flex: 1;
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .metric-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+    .tabs-nav {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.5rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      transition: all 0.15s ease;
+    }
+    .tab-btn:active {
+      transform: scale(0.97);
+    }
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+    }
+    .tab-content {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .tab-content.active {
+      display: flex;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-main);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+    }
+    .btn {
+      padding: 0.4rem 0.8rem;
+      border-radius: 0.375rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      transition: all 0.15s ease;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .btn-warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0b0f19;
+    }
+    .terminal-container {
+      background: #050811;
+      border: 1px solid var(--card-border);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      height: 360px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .log-line {
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .log-info { color: #94a3b8; }
+    .log-warn { color: var(--warning); }
+    .log-error { color: var(--danger); }
+    .terminal-form {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .terminal-input {
+      flex: 1;
+      background: #050811;
+      border: 1px solid var(--card-border);
+      border-radius: 0.375rem;
+      padding: 0.6rem 0.8rem;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 16px; /* Prevents auto-zoom on iOS */
+    }
+    .terminal-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>🚀</span>
+      <span>Rockfly Server</span>
+      <span class="badge-status">
+        <span class="badge-dot"></span>
+        <span>Online</span>
+      </span>
+    </div>
+    <div id="clock" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted);"></div>
+  </header>
+
+  <main class="container">
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-label">TPS / MSPT</span>
+        <span class="metric-value" id="tps-val">20.0</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="mspt-val">MSPT: 0.5 ms</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Active Players</span>
+        <span class="metric-value" id="players-count">0 / 20</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="players-sub">0% capacity</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Heap Memory</span>
+        <span class="metric-value" id="mem-val">-- MB</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="mem-sys">Sys: -- MB</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Uptime</span>
+        <span class="metric-value" id="uptime-val">--</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="gc-val">GC Cycles: --</span>
+      </div>
+    </section>
+
+    <nav class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab-btn" onclick="switchTab('players')">Players (<span id="tab-pcount">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('console')">Console & REPL</button>
+    </nav>
+
+    <!-- Overview Tab -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="card">
+        <div class="card-title">Server Environment</div>
+        <table>
+          <tr>
+            <td style="width: 200px; color: var(--text-muted);">Version</td>
+            <td id="env-version">Rockfly 1.0.0 (Bedrock Protocol 748)</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted);">Runtime</td>
+            <td id="env-runtime">Go -- on --</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted);">Whitelist</td>
+            <td id="env-whitelist">Disabled</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted);">Connection Throttle</td>
+            <td>1000 ms (Paper Anti-DoS)</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Players Tab -->
+    <div id="tab-players" class="tab-content">
+      <div class="card">
+        <div class="card-title">Online Players</div>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>UUID</th>
+                <th>IP Address</th>
+                <th>Operator</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="players-table-body">
+              <tr>
+                <td colspan="5" class="empty-state">No players currently online.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console Tab -->
+    <div id="tab-console" class="tab-content">
+      <div class="card">
+        <div class="card-title">Live Server Console</div>
+        <div class="terminal-container" id="terminal-logs">
+          <div class="log-line log-info">[Dashboard] Connected to server stream...</div>
+        </div>
+        <form class="terminal-form" onsubmit="sendCommand(event)">
+          <input type="text" id="cmd-input" class="terminal-input" placeholder="Type a command (e.g. /help, /list, /op)..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button type="submit" class="btn btn-primary" style="min-width: 90px;">Execute</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.toLowerCase().includes(name));
+      if (targetBtn) targetBtn.classList.add('active');
+      
+      const targetContent = document.getElementById('tab-' + name);
+      if (targetContent) targetContent.classList.add('active');
+    }
+
+    // Connect to live SSE metrics & log stream
+    const evtSource = new EventSource('/api/v1/stream');
+
+    evtSource.addEventListener('metrics', function(e) {
+      try {
+        const data = JSON.parse(e.data);
+        document.getElementById('tps-val').textContent = data.tps ? data.tps.toFixed(1) : '20.0';
+        document.getElementById('mspt-val').textContent = 'MSPT: ' + (data.mspt ? data.mspt.toFixed(1) : '0.5') + ' ms';
+        
+        const count = data.player_count || 0;
+        const max = data.max_players || 20;
+        document.getElementById('players-count').textContent = count + ' / ' + max;
+        document.getElementById('tab-pcount').textContent = count;
+        document.getElementById('players-sub').textContent = Math.round((count / max) * 100) + '% capacity';
+
+        if (data.mem_alloc) {
+          const allocMB = (data.mem_alloc / (1024 * 1024)).toFixed(1);
+          const sysMB = (data.mem_sys / (1024 * 1024)).toFixed(1);
+          document.getElementById('mem-val').textContent = allocMB + ' MB';
+          document.getElementById('mem-sys').textContent = 'Sys: ' + sysMB + ' MB';
+        }
+
+        if (data.uptime) {
+          document.getElementById('uptime-val').textContent = data.uptime;
+        }
+        if (data.gc_cycles !== undefined) {
+          document.getElementById('gc-val').textContent = 'GC Cycles: ' + data.gc_cycles;
+        }
+        if (data.go_version) {
+          document.getElementById('env-runtime').textContent = data.go_version + ' on ' + data.os_arch;
+        }
+        if (data.whitelist_enabled !== undefined) {
+          document.getElementById('env-whitelist').textContent = data.whitelist_enabled ? 'Enabled' : 'Disabled';
+        }
+
+        // Render players table
+        const tbody = document.getElementById('players-table-body');
+        if (data.players && data.players.length > 0) {
+          tbody.innerHTML = data.players.map(p => `
+            <tr>
+              <td><strong>${escapeHtml(p.name)}</strong></td>
+              <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);">${p.uuid}</td>
+              <td style="font-family: var(--font-mono); font-size: 0.85rem;">${escapeHtml(p.addr)}</td>
+              <td>${p.op ? '<span style="color: var(--warning); font-weight: bold;">OP (Lv.' + p.op_level + ')</span>' : '<span style="color: var(--text-muted);">Member</span>'}</td>
+              <td>
+                <div style="display: flex; gap: 0.35rem;">
+                  <button class="btn btn-warning" onclick="quickAction('kick', '${escapeHtml(p.name)}')">Kick</button>
+                  <button class="btn btn-danger" onclick="quickAction('ban', '${escapeHtml(p.name)}')">Ban</button>
+                  <button class="btn" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);" onclick="quickAction('${p.op ? 'deop' : 'op'}', '${escapeHtml(p.name)}')">${p.op ? 'Deop' : 'Op'}</button>
+                </div>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No players currently online.</td></tr>';
+        }
+      } catch (err) {
+        console.error('Error parsing metrics:', err);
+      }
+    });
+
+    evtSource.addEventListener('log', function(e) {
+      appendLog(e.data);
+    });
+
+    function appendLog(line) {
+      const logs = document.getElementById('terminal-logs');
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      if (line.includes('ERROR') || line.includes('error')) {
+        div.className += ' log-error';
+      } else if (line.includes('WARN') || line.includes('warn')) {
+        div.className += ' log-warn';
+      } else {
+        div.className += ' log-info';
+      }
+      div.textContent = line;
+      logs.appendChild(div);
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    async function sendCommand(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('cmd-input');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      appendLog('> ' + text);
+      input.value = '';
+
+      try {
+        const res = await fetch('/api/v1/commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: text })
+        });
+        const result = await res.json();
+        if (result.messages) {
+          result.messages.forEach(m => appendLog(m));
+        }
+        if (result.errors) {
+          result.errors.forEach(err => appendLog('[ERROR] ' + err));
+        }
+      } catch (err) {
+        appendLog('[ERROR] Failed to send command: ' + err);
+      }
+    }
+
+    function quickAction(action, name) {
+      const input = document.getElementById('cmd-input');
+      switchTab('console');
+      input.value = `/${action} ${name}`;
+      input.focus();
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
