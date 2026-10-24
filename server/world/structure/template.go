@@ -51,10 +51,12 @@ func (t *Template) SetBlock(pos cube.Pos, b world.Block) {
 		return
 	}
 
-	// Find or register in palette
+	// Find or register in palette using block hash
+	bH1, bH2 := b.Hash()
 	var pIdx int32 = -1
 	for i, palBlock := range t.palette {
-		if palBlock == b {
+		pH1, pH2 := palBlock.Hash()
+		if pH1 == bH1 && pH2 == bH2 {
 			pIdx = int32(i)
 			break
 		}

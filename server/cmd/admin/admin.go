@@ -65,4 +65,5 @@ func RegisterAll(srv Server) {
 	registerSay(srv)
 	registerVersion()
 	registerWhitelist()
+	registerLocate()
 }
