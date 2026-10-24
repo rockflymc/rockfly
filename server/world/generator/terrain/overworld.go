@@ -9,6 +9,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/df-mc/dragonfly/server/world/generator/carver"
 	"github.com/df-mc/dragonfly/server/world/generator/climate"
+	"github.com/df-mc/dragonfly/server/world/generator/feature"
 	"github.com/df-mc/dragonfly/server/world/generator/surface"
 )
 
@@ -20,6 +21,7 @@ type Overworld struct {
 	density *DensityEvaluator
 	carver  *carver.NoiseCarver
 	surface *surface.RuleBuilder
+	ores    *feature.OverworldOreFeature
 	pool    sync.Pool
 
 	stone     uint32
@@ -42,6 +44,7 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 	d := NewDensityEvaluator(seed, s)
 	crv := carver.NewNoiseCarverWithRegistry(seed, reg)
 	srf := surface.NewRuleBuilderWithRegistry(seed, reg)
+	oreFeat := feature.NewOverworldOreFeature(reg)
 
 	return &Overworld{
 		seed:    seed,
@@ -50,6 +53,7 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 		density: d,
 		carver:  crv,
 		surface: srf,
+		ores:    oreFeat,
 		pool: sync.Pool{
 			New: func() any {
 				return &CellGrid{}
@@ -103,6 +107,9 @@ func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
 
 	// Apply rule-based surface builders and bedrock stratification
 	o.surface.BuildSurface(chunkX, chunkZ, c)
+
+	// Scatter mineral ore veins according to Bedrock 1.18+ distribution curves
+	o.ores.Populate(c, chunkX, chunkZ, o.seed)
 }
 
 // DefaultSpawn returns a reasonable world spawn position near the origin.
