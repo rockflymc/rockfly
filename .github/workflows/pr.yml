@@ -1,13 +1,21 @@
-name: Build
-on: [pull_request]
+name: Production CI
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
 jobs:
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-
-      - name: Check out code into the Go module directory
+      - name: Check out code into Go module directory
         uses: actions/checkout@v6
 
       - name: Set up Go
@@ -15,24 +23,65 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Lint
+      - name: Run Unit Tests (with Race Detector on Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -v -race ./...
+
+      - name: Run Unit Tests (Windows/macOS)
+        if: matrix.os != 'ubuntu-latest'
+        run: go test -v ./...
+
+      - name: Verify Root & CLI Builds
+        run: |
+          go build -v ./cmd/rockfly
+          go build -v .
+
+  lint-and-codegen:
+    name: Lint & Code Generation Parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run Linter
         run: make lint
 
-      - name: Test
-        run: go test ./...
-
-      - name: Verify generated code
+      - name: Verify Code Generation Cleanliness
         run: |
           go generate ./server/block/
           git diff --exit-code
 
-      - name: Build deployment artifact
-        run: go build -o dragonfly_exe -v .
+  cross-compile:
+    name: Multi-Platform Cross Compilation (Zero-CGO)
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+    strategy:
+      matrix:
+        target:
+          - { os: windows, arch: amd64, ext: .exe }
+          - { os: windows, arch: arm64, ext: .exe }
+          - { os: linux, arch: amd64, ext: "" }
+          - { os: linux, arch: arm64, ext: "" }
+          - { os: darwin, arch: amd64, ext: "" }
+          - { os: darwin, arch: arm64, ext: "" }
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
 
-      - name: Upload deployment artifact
-        uses: actions/upload-artifact@v7
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          # Direct uploads use the file name as the artifact name.
-          path: dragonfly_exe
-          archive: false
-          retention-days: 1
+          go-version-file: go.mod
+
+      - name: Build Rockfly for ${{ matrix.target.os }}/${{ matrix.target.arch }}
+        env:
+          GOOS: ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
+        run: |
+          go build -v -o "dist/rockfly-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}" ./cmd/rockfly
