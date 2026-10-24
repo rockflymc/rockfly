@@ -31,7 +31,6 @@ type RuleBuilder struct {
 	taigaID    uint32
 	beachID    uint32
 	stonyID    uint32
-	oceanID    uint32
 }
 
 // NewRuleBuilder constructs a RuleBuilder using the DefaultBlockRegistry and given seed.
@@ -63,7 +62,6 @@ func NewRuleBuilderWithRegistry(seed int64, reg world.BlockRegistry) *RuleBuilde
 		taigaID:    uint32(biome.Taiga{}.EncodeBiome()),
 		beachID:    uint32(biome.Beach{}.EncodeBiome()),
 		stonyID:    uint32(biome.StonyPeaks{}.EncodeBiome()),
-		oceanID:    uint32(biome.Ocean{}.EncodeBiome()),
 	}
 }
 
@@ -100,7 +98,7 @@ func (b *RuleBuilder) BuildSurface(chunkX, chunkZ int, c *chunk.Chunk) {
 			biomeID := c.Biome(x, 64, z)
 
 			// Scan down from ceiling to find upper solid boundary
-			var surfaceY int = -100
+			surfaceY := -100
 			for y := 319; y >= -50; y-- {
 				curr := c.Block(x, int16(y), z, 0)
 				if curr == b.stone || curr == b.deepslate {
