@@ -50,11 +50,8 @@ func (a *Absorption) Absorb(damage float64) (damageLeft, absorbed float64) {
 			if a.value.CompareAndSwap(curBits, math.Float64bits(next)) {
 				return 0, damage
 			}
-		} else {
-			// cur < damage
-			if a.value.CompareAndSwap(curBits, 0) {
-				return damage - cur, cur
-			}
+		} else if a.value.CompareAndSwap(curBits, 0) {
+			return damage - cur, cur
 		}
 	}
 }
