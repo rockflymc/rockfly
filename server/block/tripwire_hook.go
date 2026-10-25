@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	_ world.Block                  = TripwireHook{}
-	_ world.Item                   = TripwireHook{}
-	_ world.ScheduledTicker        = TripwireHook{}
-	_ world.NeighbourUpdateTicker  = TripwireHook{}
-	_ world.RedstonePowerSource    = TripwireHook{}
+	_ world.Block                     = TripwireHook{}
+	_ world.Item                      = TripwireHook{}
+	_ world.ScheduledTicker           = TripwireHook{}
+	_ world.NeighbourUpdateTicker     = TripwireHook{}
+	_ world.RedstonePowerSource       = TripwireHook{}
 	_ world.RedstoneStrongPowerSource = TripwireHook{}
-	_ world.RedstoneWeakBlockPowerer = TripwireHook{}
+	_ world.RedstoneWeakBlockPowerer  = TripwireHook{}
 )
 
 // TripwireHook is a redstone component that connects to another tripwire hook via string (tripwire)
