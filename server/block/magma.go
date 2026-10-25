@@ -7,10 +7,24 @@ import (
 	"github.com/df-mc/dragonfly/server/world"
 )
 
-// Magma is a light-emitting Nether block that damages entities standing on it.
+var (
+	_ world.Block                 = Magma{}
+	_ world.NeighbourUpdateTicker = Magma{}
+)
+
+// Magma is a light-emitting Nether block that damages entities standing on it
+// and generates downward whirlpool bubble columns in water.
 type Magma struct {
 	solid
 	bassDrum
+}
+
+// NeighbourUpdateTick triggers creation of downward whirlpool bubble columns in water above.
+func (m Magma) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	abovePos := pos.Side(cube.FaceUp)
+	if w, ok := tx.Block(abovePos).(Water); ok && w.Depth == 8 && w.Still {
+		CheckCreateBubbleColumn(abovePos, tx)
+	}
 }
 
 // LightEmissionLevel ...

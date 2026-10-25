@@ -163,15 +163,17 @@ func (s *Session) determineAvailableEnchantments(tx *world.Tx, c Controllable, p
 	lowerLevelCost := max(baseCost, bookshelves*2)
 
 	// Create a list of available enchantments for each slot.
-	return []int{
-			upperLevelCost,
-			middleLevelCost,
-			lowerLevelCost,
-		}, [][]item.Enchantment{
-			createEnchantments(random, stack, value, upperLevelCost),
-			createEnchantments(random, stack, value, middleLevelCost),
-			createEnchantments(random, stack, value, lowerLevelCost),
-		}
+	costs := []int{
+		upperLevelCost,
+		middleLevelCost,
+		lowerLevelCost,
+	}
+	enchantmentList := [][]item.Enchantment{
+		createEnchantments(random, stack, value, upperLevelCost),
+		createEnchantments(random, stack, value, middleLevelCost),
+		createEnchantments(random, stack, value, lowerLevelCost),
+	}
+	return costs, enchantmentList
 }
 
 // treasureEnchantment represents an enchantment that may be a treasure enchantment.

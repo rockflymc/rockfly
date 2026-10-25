@@ -1,16 +1,29 @@
 package block
 
 import (
+	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/sound"
 )
 
-// SoulSand is a block found naturally only in the Nether. SoulSand slows movement of mobs & players.
+var (
+	_ world.Block                 = SoulSand{}
+	_ world.NeighbourUpdateTicker = SoulSand{}
+)
+
+// SoulSand is a block found naturally only in the Nether. SoulSand slows movement of mobs & players
+// and generates upward bubble columns in water.
 type SoulSand struct {
 	solid
 }
 
-// TODO: Implement bubble columns.
+// NeighbourUpdateTick triggers creation of upward bubble columns in water above.
+func (s SoulSand) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	abovePos := pos.Side(cube.FaceUp)
+	if w, ok := tx.Block(abovePos).(Water); ok && w.Depth == 8 && w.Still {
+		CheckCreateBubbleColumn(abovePos, tx)
+	}
+}
 
 // SoilFor ...
 func (s SoulSand) SoilFor(block world.Block) bool {

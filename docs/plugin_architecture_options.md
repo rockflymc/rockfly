@@ -169,16 +169,18 @@ graph TD
 
 ---
 
-## 4. The Recommended Architecture for Rockfly
+## 4. The Finalized Two-Tier Zero-Tooling Architecture for Rockfly
 
-To provide both **maximum performance for complex plugins** and **effortless scripting for simple minigames**, Rockfly adopts a **Dual-Engine Plugin Core**:
+To deliver maximum developer velocity, zero end-user friction, and strict `CGO_ENABLED=0` cross-compilation across all operating systems, Rockfly adopts the **Two-Tier Zero-Tooling Plugin Architecture**:
 
-1. **Tier 1 — Compiled Production Plugins (WASM via Wazero)**:
-   - For high-performance plugins: Custom terrain generators, physics systems, anti-cheat guards, and complex minigame engines.
-   - Authors compile once to `.wasm`. It runs everywhere with near-native speed and cannot crash the server.
+1. **Tier 1 Flagship (95% of plugins — Events, Commands, Minigames, Game Logic): Embedded TypeScript (`esbuild` + `goja`)**:
+   - **Zero Tooling**: Uses pure-Go `github.com/evanw/esbuild/pkg/api` to transpile and bundle `.ts` / `.js` plugins in-memory in ~2ms with zero external Node.js/npm/tsc dependencies.
+   - **Native Go Heap Execution**: Runs inside pure-Go `github.com/dop251/goja` ECMAScript VM on the native Go heap, passing event pointers (`*BlockBreakEvent`, `*PlayerMoveEvent`) directly from Phase 6's `TypedBus[E]` with zero serialization or FFI overhead.
+   - **Instant IntelliSense**: Automatically generates `plugins/rockfly.d.ts` on server bootstrap so plugin developers get rich VS Code autocomplete, hover docs, and type safety out of the box.
+   - **Tick Safety**: Execution timeout and loop watchdog (`vm.Interrupt`) safely aborts infinite loops without stalling world transactions.
 
-2. **Tier 2 — Drop-in Scripting (Dynamic Go via Yaegi OR JavaScript/Luau)**:
-   - For server owners and rapid feature creators: Drop a `.go` or `.js`/`.lua` file directly into `plugins/`.
-   - The server evaluates it instantly on boot with zero build steps and supports live hot-reloading on save.
+2. **Tier 2 Compute Engine (5% of plugins — Heavy WorldGen, Raycasting, Bulk Block Operations): Pure-Go Wazero WebAssembly (`wazero` + Batched Ring Buffer)**:
+   - **High-Throughput Sandboxing**: Uses pure-Go `github.com/tetratelabs/wazero` (`CGO_ENABLED=0`) for numerical, heavy computation plugins compiled from standard Go (`GOOS=wasip1 GOARCH=wasm`) or AssemblyScript. Heavy external toolchains (Rust/Cargo/LLVM) requiring gigabyte downloads are strictly rejected.
+   - **Non-Blocking World Transactions**: Guests NEVER hold an open `*world.Tx` lock. Block mutations use the shared linear memory ring buffer `rockfly_commit_block_batch(ptr uint32, count uint32)` to commit thousands of block changes atomically in a single fast Go transaction.
 
-This gives Rockfly the best of both worlds: the raw power of compiled plugins and the instant friction-free development of lightweight scripts.
+This architecture ensures 100% of plugins run with zero installation friction, zero CGO, and maximum performance.

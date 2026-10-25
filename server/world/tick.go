@@ -8,6 +8,8 @@ import (
 
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
+	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/go-gl/mathgl/mgl64"
 )
 
 // ticker implements World ticking methods.
@@ -150,7 +152,11 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	}
 
 	for pos, c := range tx.World().chunks {
-		if !t.anyWithinDistance(pos, loaded, r) {
+		if tx.World().ticketManager != nil && !tx.World().conf.Synchronous {
+			if !tx.World().ticketManager.State(chunk.Pos(pos)).CanTickBlocks() {
+				continue
+			}
+		} else if !t.anyWithinDistance(pos, loaded, r) {
 			// No loaders in this chunk that are within the simulation distance, so proceed to the next.
 			continue
 		}
@@ -210,6 +216,16 @@ func (t ticker) anyWithinDistance(pos ChunkPos, loaded []ChunkPos, r int32) bool
 // tickEntities ticks all entities in the world, making sure they are still located in the correct chunks and
 // updating where necessary.
 func (t ticker) tickEntities(tx *Tx, tick int64) {
+	var playerPositions []mgl64.Vec3
+	ear := tx.World().earTracker
+	if ear != nil && ear.conf.Enabled {
+		for handle := range tx.World().entities {
+			if handle.Type().EncodeEntity() == "minecraft:player" {
+				playerPositions = append(playerPositions, handle.data.Pos)
+			}
+		}
+	}
+
 	for handle, lastPos := range tx.World().entities {
 		e := handle.mustEntity(tx)
 		chunkPos := chunkPosFromVec3(handle.data.Pos)
@@ -224,6 +240,9 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			// for loaders to view it.
 			tx.World().entities[handle] = chunkPos
 			c.Entities = append(c.Entities, handle)
+			if tx.World().spatialGrid != nil {
+				tx.World().spatialGrid.Move(handle, handle.data.Pos)
+			}
 
 			var viewers []Viewer
 
@@ -251,9 +270,29 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			}
 		}
 
-		if tx.World().conf.Synchronous || len(c.viewers) > 0 {
-			if te, ok := e.(TickerEntity); ok {
-				te.Tick(tx, tick)
+		canTick := tx.World().conf.Synchronous
+		if !canTick && tx.World().ticketManager != nil {
+			canTick = tx.World().ticketManager.State(chunk.Pos(chunkPos)).CanTickEntities()
+		} else if !canTick {
+			canTick = len(c.viewers) > 0
+		}
+
+		if canTick {
+			shouldTick := true
+			isInactive := false
+			if ear != nil && ear.conf.Enabled {
+				shouldTick, isInactive = ear.ShouldTick(e, handle, playerPositions, tick)
+			}
+			if shouldTick {
+				if isInactive {
+					if ite, ok := e.(InactiveTickerEntity); ok {
+						ite.InactiveTick(tx, tick)
+					} else if te, ok := e.(TickerEntity); ok {
+						te.Tick(tx, tick)
+					}
+				} else if te, ok := e.(TickerEntity); ok {
+					te.Tick(tx, tick)
+				}
 			}
 		}
 	}

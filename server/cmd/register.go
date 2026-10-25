@@ -14,6 +14,23 @@ func Register(command Command) {
 	}
 }
 
+// Unregister removes a command and all of its aliases from the command registry.
+func Unregister(command Command) {
+	commands.Delete(command.name)
+	for _, alias := range command.aliases {
+		commands.Delete(alias)
+	}
+}
+
+// UnregisterByName removes a command by its name or alias.
+func UnregisterByName(name string) {
+	if c, ok := ByAlias(name); ok {
+		Unregister(c)
+	} else {
+		commands.Delete(name)
+	}
+}
+
 // ByAlias looks up a command by an alias. If found, the command and true are returned. If not, the returned
 // command is nil and the bool is false.
 func ByAlias(alias string) (Command, bool) {

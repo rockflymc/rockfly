@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/df-mc/dragonfly/server/cmd/admin"
+	"github.com/df-mc/dragonfly/server/cmd/gameplay"
 	"github.com/df-mc/dragonfly/server/console"
 	"github.com/df-mc/dragonfly/server/gui"
 	"github.com/df-mc/dragonfly/server/player"
@@ -226,6 +227,7 @@ func Bootstrap(opts ...LifecycleOptions) (*Server, error) {
 	srv := conf.New()
 	srv.SetupGracefulShutdown(opt.Logger)
 	admin.RegisterAll(srv)
+	gameplay.RegisterAll(srv)
 	return srv, nil
 }
 

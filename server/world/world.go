@@ -16,6 +16,7 @@ import (
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/chunk/starlight"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
@@ -81,6 +82,10 @@ type World struct {
 	// be removed from the map.
 	scheduledUpdates *scheduledTickQueue
 	redstone         *redstoneEngine
+	ticketManager    *chunk.TicketManager
+	lightingEngine   *starlight.Engine
+	earTracker       *EARTracker
+	spatialGrid      *SpatialGrid
 	neighbourUpdates []neighbourUpdate
 
 	viewerMu sync.Mutex
@@ -128,6 +133,47 @@ func (w *World) Range() cube.Range {
 // BlockRegistry returns the BlockRegistry used by the World.
 func (w *World) BlockRegistry() BlockRegistry {
 	return w.conf.Blocks
+}
+
+// Generator returns the Generator used to generate new chunks for the World.
+func (w *World) Generator() Generator {
+	return w.conf.Generator
+}
+
+// TicketManager returns the chunk ticket manager of the World.
+func (w *World) TicketManager() *chunk.TicketManager {
+	return w.ticketManager
+}
+
+// EARTracker returns the Entity Activation Range tracker of the World.
+func (w *World) EARTracker() *EARTracker {
+	return w.earTracker
+}
+
+// SpatialGrid returns the Spatial Hash Grid entity tracker of the World.
+func (w *World) SpatialGrid() *SpatialGrid {
+	return w.spatialGrid
+}
+
+// ChunkLevel returns the current ticket level of the chunk at pos.
+func (w *World) ChunkLevel(pos ChunkPos) int {
+	if w.ticketManager == nil {
+		return chunk.LevelEntityTicking
+	}
+	return w.ticketManager.Level(chunk.Pos(pos))
+}
+
+// ChunkState returns the current ChunkState of the chunk at pos.
+func (w *World) ChunkState(pos ChunkPos) chunk.ChunkState {
+	if w.ticketManager == nil {
+		return chunk.StateEntityTicking
+	}
+	return w.ticketManager.State(chunk.Pos(pos))
+}
+
+// LightingEngine returns the asynchronous Starlight lighting engine of the World.
+func (w *World) LightingEngine() *starlight.Engine {
+	return w.lightingEngine
 }
 
 // execFunc is a function that performs a synchronised transaction on a World.
@@ -862,6 +908,9 @@ func (w *World) addEntityAt(tx *Tx, handle *EntityHandle, pos mgl64.Vec3) Entity
 
 	c := tx.chunk(chunkPos)
 	c.Entities, c.modified = append(c.Entities, handle), true
+	if w.spatialGrid != nil {
+		w.spatialGrid.Insert(handle, handle.data.Pos)
+	}
 
 	e := handle.mustEntity(tx)
 	for _, v := range c.viewers {
@@ -894,6 +943,9 @@ func (w *World) removeEntity(e Entity, tx *Tx) *EntityHandle {
 		v.HideEntity(e)
 	}
 	delete(w.entities, handle)
+	if w.spatialGrid != nil {
+		w.spatialGrid.Remove(handle)
+	}
 	handle.unsetAndLockWorld()
 	return handle
 }
@@ -917,6 +969,18 @@ func (w *World) removeEntityFromViewLayers(e Entity) {
 // entitiesWithin returns an iterator that yields all entities contained within
 // the cube.BBox passed.
 func (w *World) entitiesWithin(tx *Tx, box cube.BBox) iter.Seq[Entity] {
+	if w.spatialGrid != nil {
+		return func(yield func(Entity) bool) {
+			w.spatialGrid.Query(box, func(handle *EntityHandle) bool {
+				ent, ok := handle.Entity(tx)
+				if ok && !yield(ent) {
+					return false
+				}
+				return true
+			})
+		}
+	}
+
 	return func(yield func(Entity) bool) {
 		minPos, maxPos := chunkPosFromVec3(box.Min()), chunkPosFromVec3(box.Max())
 
@@ -1263,6 +1327,9 @@ func (w *World) close() {
 	close(w.closing)
 	w.running.Wait()
 	w.chunkWorkers.wg.Wait()
+	if w.lightingEngine != nil {
+		w.lightingEngine.Close()
+	}
 
 	close(w.queueClosing)
 	w.queueing.Wait()
@@ -1535,11 +1602,16 @@ func (w *World) autoSave() {
 	}
 }
 
-// closeUnusedChunk closes all chunks currently not in use by any viewer.
+// closeUnusedChunks closes all chunks currently not in use by any viewer and not protected by tickets or linger timers.
 func (w *World) closeUnusedChunks(tx *Tx) {
+	if w.ticketManager != nil {
+		w.ticketManager.Reap(tx.CurrentTick())
+	}
 	for pos, c := range w.chunks {
 		if len(c.viewers) == 0 {
-			w.closeChunk(tx, pos, c)
+			if w.ticketManager == nil || w.ticketManager.CanUnload(chunk.Pos(pos), tx.CurrentTick()) {
+				w.closeChunk(tx, pos, c)
+			}
 		}
 	}
 }

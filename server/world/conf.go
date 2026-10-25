@@ -4,6 +4,9 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"time"
+
+	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/chunk/starlight"
 )
 
 type blockRegistrySetter interface {
@@ -76,6 +79,10 @@ type Config struct {
 	// use NewBlockRegistry(), register blocks/states, and call Finalize().
 	Blocks BlockRegistry
 
+	// EntityActivationRange specifies the configuration for Paper-style
+	// Entity Activation Range (EAR). If not set, DefaultEARConfig() is used.
+	EntityActivationRange EARConfig
+
 	// Synchronous removes the World's own background goroutines. Immediate tasks
 	// from World.Do and Call run on the calling goroutine, the World is not saved
 	// or unloaded automatically, and time only passes on explicit
@@ -146,6 +153,10 @@ func (conf Config) New() *World {
 		conf.Generator = &lockedGenerator{g: conf.Generator}
 	}
 	w := &World{
+		ticketManager:    chunk.NewTicketManager(200),
+		lightingEngine:   starlight.NewEngine(conf.ChunkLoadWorkers),
+		earTracker:       NewEARTracker(conf.EntityActivationRange),
+		spatialGrid:      NewSpatialGrid(),
 		scheduledUpdates: newScheduledTickQueue(s.CurrentTick),
 		redstone:         newRedstoneEngine(s.CurrentTick),
 		entities:         make(map[*EntityHandle]ChunkPos),

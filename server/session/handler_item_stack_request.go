@@ -51,6 +51,13 @@ func (h *ItemStackRequestHandler) Handle(p packet.Packet, s *Session, tx *world.
 	defer s.inTransaction.Store(false)
 
 	for _, req := range pk.Requests {
+		if s.antiDupe != nil {
+			if err := s.antiDupe.ValidateRequest(s, req); err != nil {
+				s.conf.Log.Debug("process packet: ItemStackRequest: anti-dupe validation rejected: " + err.Error())
+				h.reject(req.RequestID, s, tx)
+				continue
+			}
+		}
 		if err := h.handleRequest(req, s, tx, c); err != nil {
 			// Item stacks being out of sync isn't uncommon, so don't error. Just debug the error and let the
 			// revert do its work.
@@ -142,6 +149,11 @@ func (h *ItemStackRequestHandler) handlePlace(a *protocol.PlaceStackRequestActio
 
 // handleTransfer handles the transferring of x count from a source slot to a destination slot.
 func (h *ItemStackRequestHandler) handleTransfer(from, to protocol.StackRequestSlotInfo, count byte, s *Session, tx *world.Tx, c Controllable) error {
+	if s.antiDupe != nil {
+		if _, err := s.antiDupe.ValidateCount(count); err != nil {
+			return err
+		}
+	}
 	if err := h.verifySlots(s, tx, from, to); err != nil {
 		return fmt.Errorf("source slot out of sync: %w", err)
 	}
@@ -488,8 +500,12 @@ func (h *ItemStackRequestHandler) reject(id int32, s *Session, tx *world.Tx) {
 	// Revert changes that we already made for valid actions.
 	for container, slots := range h.changes {
 		for slot, info := range slots {
-			inv, _ := s.invByID(int32(container), tx)
-			_ = inv.SetItem(int(slot), info.before)
+			if inv, _ := s.invByID(int32(container), tx); inv != nil {
+				_ = inv.SetItem(int(slot), info.before)
+			}
+		}
+		if s.antiDupe != nil {
+			s.antiDupe.ResyncContainer(s, tx, container)
 		}
 	}
 
