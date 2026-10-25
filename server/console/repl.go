@@ -115,7 +115,11 @@ func (r *REPL) History() []string {
 // Complete returns auto-completion candidates for the given command prefix.
 func (r *REPL) Complete(line string) []string {
 	line = strings.TrimPrefix(line, "/")
-	line = strings.ToLower(strings.TrimSpace(line))
+	line = strings.TrimSpace(line)
+	if strings.Contains(line, " ") {
+		return nil
+	}
+	line = strings.ToLower(line)
 
 	candidates := []string{"stop", "exit", "help", "version"}
 	for name := range cmd.Commands() {
@@ -178,6 +182,11 @@ func (r *REPL) ExecuteLine(line string, srv Server) {
 	}
 
 	_, err := world.Call(context.Background(), srv.World(), func(tx *world.Tx) (struct{}, error) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				r.log.Error("panic recovered during console command execution", "panic", fmt.Sprint(rec))
+			}
+		}()
 		command.Execute(args, r.source, tx)
 		return struct{}{}, nil
 	})
