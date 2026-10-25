@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	_ world.Block                  = SculkSensor{}
-	_ world.Item                   = SculkSensor{}
-	_ world.ScheduledTicker        = SculkSensor{}
-	_ world.RedstonePowerSource    = SculkSensor{}
+	_ world.Block                     = SculkSensor{}
+	_ world.Item                      = SculkSensor{}
+	_ world.ScheduledTicker           = SculkSensor{}
+	_ world.RedstonePowerSource       = SculkSensor{}
 	_ world.RedstoneStrongPowerSource = SculkSensor{}
-	_ world.RedstoneWeakBlockPowerer = SculkSensor{}
+	_ world.RedstoneWeakBlockPowerer  = SculkSensor{}
 
 	sculkMu      sync.RWMutex
 	sculkFreqMap = make(map[cube.Pos]int)
@@ -112,7 +112,8 @@ func (s SculkSensor) Trigger(pos cube.Pos, tx *world.Tx, freq VibrationFrequency
 
 // ScheduledTick advances the phase from Active -> Cooldown -> Inactive.
 func (s SculkSensor) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
-	if s.Phase == 1 {
+	switch s.Phase {
+	case 1:
 		// Active -> Cooldown (Phase 2, 10 game ticks)
 		sculkMu.Lock()
 		delete(sculkFreqMap, pos)
@@ -122,7 +123,7 @@ func (s SculkSensor) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 		s.Frequency = 0
 		tx.SetBlock(pos, s, nil)
 		tx.ScheduleBlockUpdate(pos, s, redstoneTicks(5))
-	} else if s.Phase == 2 {
+	case 2:
 		// Cooldown -> Inactive (Phase 0)
 		s.Phase = 0
 		tx.SetBlock(pos, s, nil)
@@ -158,7 +159,7 @@ func (s SculkSensor) EncodeBlock() (string, map[string]any) {
 	if s.Calibrated {
 		return "minecraft:calibrated_sculk_sensor", map[string]any{
 			"minecraft:cardinal_direction": s.Facing.String(),
-			"sculk_sensor_phase":          int32(s.Phase),
+			"sculk_sensor_phase":           int32(s.Phase),
 		}
 	}
 	return "minecraft:sculk_sensor", map[string]any{
