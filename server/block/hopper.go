@@ -75,10 +75,16 @@ func (Hopper) CanRedstoneWireStepDown(cube.Pos, cube.Pos, *world.Tx) bool {
 // BreakInfo ...
 func (h Hopper) BreakInfo() BreakInfo {
 	return newBreakInfo(3, pickaxeHarvestable, pickaxeEffective, oneOf(Hopper{})).withBlastResistance(4.8).withBreakHandler(func(pos cube.Pos, tx *world.Tx, u item.User) {
+		removeHopperState(pos)
 		for _, i := range h.Inventory(tx, pos).Clear() {
 			dropItem(tx, i, pos.Vec3())
 		}
 	})
+}
+
+// NeighbourUpdateTick wakes up sleeping hoppers upon neighboring block or redstone changes.
+func (h Hopper) NeighbourUpdateTick(pos, _ cube.Pos, _ *world.Tx) {
+	WakeHopper(pos)
 }
 
 // Inventory returns the inventory of the hopper.
@@ -133,8 +139,18 @@ func (h Hopper) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 	return placed(ctx)
 }
 
-// Tick ...
-func (h Hopper) Tick(_ int64, pos cube.Pos, tx *world.Tx) {
+// Tick handles hopper item transfer, entity suction, and sleep cycles.
+func (h Hopper) Tick(currentTick int64, pos cube.Pos, tx *world.Tx) {
+	optimizer := HopperOptimizer{}
+	if optimizer.ShouldSleep(pos, currentTick) {
+		return
+	}
+
+	if h.Powered {
+		optimizer.PutToSleep(pos, currentTick, 8)
+		return
+	}
+
 	cooldownChanged := h.TransferCooldown > 0 || h.CollectCooldown > 0
 	if h.TransferCooldown > 0 {
 		h.TransferCooldown--
@@ -143,13 +159,35 @@ func (h Hopper) Tick(_ int64, pos cube.Pos, tx *world.Tx) {
 		h.CollectCooldown--
 	}
 
-	if !h.Powered && h.TransferCooldown <= 0 {
+	if h.TransferCooldown <= 0 {
 		inserted := h.insertItem(pos, tx)
 		extracted := h.extractItem(pos, tx)
-		if inserted || extracted {
+		collected := false
+		if !inserted && !extracted {
+			// Check suction occlusion and collect dropped items above
+			optimizer.CheckSuctionOcclusion(pos, tx)
+			collected = optimizer.CollectDroppedItems(h, pos, tx)
+		}
+
+		if inserted || extracted || collected {
 			h.TransferCooldown = 8
 			tx.SetBlock(pos, h, nil)
+			WakeHopper(pos)
 			return
+		}
+
+		// If hopper is idle with empty inventory and nothing around, put to sleep for 8 ticks
+		empty := true
+		if h.inventory != nil {
+			for _, s := range h.inventory.Slots() {
+				if !s.Empty() {
+					empty = false
+					break
+				}
+			}
+		}
+		if empty {
+			optimizer.PutToSleep(pos, currentTick, 8)
 		}
 	}
 
