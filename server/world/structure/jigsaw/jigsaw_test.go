@@ -113,6 +113,20 @@ func TestJigsawAssembly(t *testing.T) {
 	if b := c.Block(2, 65, 1, 0); b != dirtRID {
 		t.Fatalf("expected final block dirt at (2, 65, 1), got %d", b)
 	}
+
+	// Test Nil Safety
+	var nilAssembler *jigsaw.Assembler
+	nilAssembler.RegisterPool(nil)
+	if nilAssembler.Assemble("test", cube.Pos{0, 0, 0}, 1, 0) != nil {
+		t.Fatal("expected nil assemble from nil assembler")
+	}
+	nilAssembler.Build(nil, nil)
+	nilAssembler.BuildChunk(nil, world.ChunkPos{0, 0}, nil, nil)
+
+	var nilPool *jigsaw.Pool
+	if nilPool.Select(10) != nil {
+		t.Fatal("expected nil piece from nil pool")
+	}
 }
 
 func BenchmarkJigsawAssembly(b *testing.B) {
