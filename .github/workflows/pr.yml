@@ -2,9 +2,8 @@ name: Production CI
 
 on:
   pull_request:
-    branches: [ master ]
   push:
-    branches: [ master ]
+    branches: [ master, "feat/**" ]
 
 jobs:
   test:
