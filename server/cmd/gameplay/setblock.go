@@ -17,8 +17,8 @@ func registerSetBlock() {
 
 // SetBlock changes the block at a given coordinate.
 type SetBlock struct {
-	Position mgl64.Vec3        `cmd:"position"`
-	TileName string            `cmd:"tileName"`
+	Position mgl64.Vec3           `cmd:"position"`
+	TileName string               `cmd:"tileName"`
 	Mode     cmd.Optional[string] `cmd:"mode"`
 }
 
