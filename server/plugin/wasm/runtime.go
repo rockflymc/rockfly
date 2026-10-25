@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/df-mc/dragonfly/server/plugin"
 	"github.com/tetratelabs/wazero"
@@ -120,7 +121,9 @@ func (p *WASMPlugin) Enable() error {
 	p.mu.Unlock()
 
 	if onEnable != nil {
-		if _, err := onEnable.Call(p.ctx); err != nil {
+		ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
+		defer cancel()
+		if _, err := onEnable.Call(ctx); err != nil {
 			p.mu.Lock()
 			p.enabled = false
 			p.mu.Unlock()
@@ -142,7 +145,9 @@ func (p *WASMPlugin) Disable() error {
 	p.mu.Unlock()
 
 	if onDisable != nil {
-		_, _ = onDisable.Call(p.ctx)
+		ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
+		defer cancel()
+		_, _ = onDisable.Call(ctx)
 	}
 	return nil
 }
@@ -153,12 +158,13 @@ func (p *WASMPlugin) Close() error {
 	defer p.mu.Unlock()
 
 	p.enabled = false
+	bgCtx := context.Background()
 	if p.module != nil {
-		_ = p.module.Close(p.ctx)
+		_ = p.module.Close(bgCtx)
 		p.module = nil
 	}
 	if p.runtime != nil {
-		_ = p.runtime.Close(p.ctx)
+		_ = p.runtime.Close(bgCtx)
 		p.runtime = nil
 	}
 	if p.cancel != nil {
@@ -177,6 +183,11 @@ func (p *WASMPlugin) Module() api.Module {
 
 // CallFunction invokes an exported guest function with the provided arguments.
 func (p *WASMPlugin) CallFunction(name string, params ...uint64) ([]uint64, error) {
+	return p.CallFunctionWithTimeout(name, 5*time.Second, params...)
+}
+
+// CallFunctionWithTimeout invokes an exported guest function with a watchdog deadline.
+func (p *WASMPlugin) CallFunctionWithTimeout(name string, timeout time.Duration, params ...uint64) ([]uint64, error) {
 	p.mu.RLock()
 	mod := p.module
 	p.mu.RUnlock()
@@ -190,5 +201,8 @@ func (p *WASMPlugin) CallFunction(name string, params ...uint64) ([]uint64, erro
 		return nil, fmt.Errorf("function %q not exported by wasm module", name)
 	}
 
-	return fn.Call(p.ctx, params...)
+	callCtx, cancel := context.WithTimeout(p.ctx, timeout)
+	defer cancel()
+
+	return fn.Call(callCtx, params...)
 }

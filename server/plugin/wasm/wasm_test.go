@@ -198,3 +198,70 @@ func main() {
 		t.Fatalf("disable failed: %v", err)
 	}
 }
+
+func TestLinearRingBuffer_Operations(t *testing.T) {
+	rb := NewLinearRingBuffer(10)
+
+	if rb.Capacity != 10 {
+		t.Fatalf("expected capacity 10, got %d", rb.Capacity)
+	}
+	if rb.Used() != 0 {
+		t.Fatalf("expected used 0, got %d", rb.Used())
+	}
+	if rb.Available() != 9 {
+		t.Fatalf("expected available 9, got %d", rb.Available())
+	}
+
+	// Push 5 items
+	start, err := rb.Push(5)
+	if err != nil {
+		t.Fatalf("push failed: %v", err)
+	}
+	if start != 0 {
+		t.Fatalf("expected start 0, got %d", start)
+	}
+	if rb.Used() != 5 {
+		t.Fatalf("expected used 5, got %d", rb.Used())
+	}
+	if rb.Available() != 4 {
+		t.Fatalf("expected available 4, got %d", rb.Available())
+	}
+
+	// Advance 3 items
+	if err := rb.Advance(3); err != nil {
+		t.Fatalf("advance failed: %v", err)
+	}
+	if rb.Used() != 2 {
+		t.Fatalf("expected used 2, got %d", rb.Used())
+	}
+
+	// Push 4 more (wrap-around: head was 5, 5+4=9 % 10 = 9)
+	start2, err := rb.Push(4)
+	if err != nil {
+		t.Fatalf("second push failed: %v", err)
+	}
+	if start2 != 5 {
+		t.Fatalf("expected start 5, got %d", start2)
+	}
+	if rb.Used() != 6 {
+		t.Fatalf("expected used 6, got %d", rb.Used())
+	}
+
+	// Over-push should fail
+	_, err = rb.Push(5)
+	if err == nil {
+		t.Fatalf("expected error when pushing beyond capacity")
+	}
+
+	// Over-advance should fail
+	err = rb.Advance(10)
+	if err == nil {
+		t.Fatalf("expected error when advancing beyond used count")
+	}
+
+	// Reset
+	rb.Reset()
+	if rb.Used() != 0 || rb.Available() != 9 {
+		t.Fatalf("expected buffer to be empty after reset")
+	}
+}
