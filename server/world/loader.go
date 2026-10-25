@@ -5,6 +5,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/go-gl/mathgl/mgl64"
 )
 
@@ -48,6 +49,10 @@ func (l *Loader) ChangeWorld(tx *Tx, new *World) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if l.w != nil && l.w.ticketManager != nil {
+		l.w.ticketManager.RemoveTicket(chunk.Pos(l.pos), chunk.TicketPlayer, l, tx.CurrentTick())
+	}
+
 	loaded := maps.Clone(l.loaded)
 	l.w.exec(func(tx *Tx) {
 		for pos := range loaded {
@@ -68,6 +73,16 @@ func (l *Loader) ChangeRadius(tx *Tx, new int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if l.w != nil && l.w.ticketManager != nil {
+		l.w.ticketManager.RemoveTicket(chunk.Pos(l.pos), chunk.TicketPlayer, l, tx.CurrentTick())
+		l.w.ticketManager.AddTicket(chunk.Pos(l.pos), chunk.Ticket{
+			Type:   chunk.TicketPlayer,
+			Level:  chunk.LevelEntityTicking,
+			Radius: new,
+			Owner:  l,
+		})
+	}
+
 	l.r = new
 	l.evictUnused(tx)
 	l.populateLoadQueue()
@@ -82,7 +97,17 @@ func (l *Loader) Move(tx *Tx, pos mgl64.Vec3) {
 	if chunkPos == l.pos {
 		return
 	}
+	oldPos := l.pos
 	l.pos = chunkPos
+	if l.w != nil && l.w.ticketManager != nil {
+		l.w.ticketManager.RemoveTicket(chunk.Pos(oldPos), chunk.TicketPlayer, l, tx.CurrentTick())
+		l.w.ticketManager.AddTicket(chunk.Pos(chunkPos), chunk.Ticket{
+			Type:   chunk.TicketPlayer,
+			Level:  chunk.LevelEntityTicking,
+			Radius: l.r,
+			Owner:  l,
+		})
+	}
 	l.evictUnused(tx)
 	l.populateLoadQueue()
 }
@@ -162,6 +187,10 @@ func (l *Loader) Close(tx *Tx) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if l.w != nil && l.w.ticketManager != nil {
+		l.w.ticketManager.RemoveTicket(chunk.Pos(l.pos), chunk.TicketPlayer, l, tx.CurrentTick())
+	}
+
 	for pos := range l.loaded {
 		tx.World().removeViewer(tx, pos, l)
 	}
@@ -181,6 +210,14 @@ func (l *Loader) Close(tx *Tx) {
 func (l *Loader) world(new *World) {
 	l.w = new
 	l.w.addWorldViewer(l)
+	if l.w != nil && l.w.ticketManager != nil {
+		l.w.ticketManager.AddTicket(chunk.Pos(l.pos), chunk.Ticket{
+			Type:   chunk.TicketPlayer,
+			Level:  chunk.LevelEntityTicking,
+			Radius: l.r,
+			Owner:  l,
+		})
+	}
 	l.populateLoadQueue()
 }
 

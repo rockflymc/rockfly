@@ -8,6 +8,7 @@ import (
 
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
+	"github.com/df-mc/dragonfly/server/world/chunk"
 )
 
 // ticker implements World ticking methods.
@@ -150,7 +151,11 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	}
 
 	for pos, c := range tx.World().chunks {
-		if !t.anyWithinDistance(pos, loaded, r) {
+		if tx.World().ticketManager != nil && !tx.World().conf.Synchronous {
+			if !tx.World().ticketManager.State(chunk.Pos(pos)).CanTickBlocks() {
+				continue
+			}
+		} else if !t.anyWithinDistance(pos, loaded, r) {
 			// No loaders in this chunk that are within the simulation distance, so proceed to the next.
 			continue
 		}
@@ -251,7 +256,14 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			}
 		}
 
-		if tx.World().conf.Synchronous || len(c.viewers) > 0 {
+		canTick := tx.World().conf.Synchronous
+		if !canTick && tx.World().ticketManager != nil {
+			canTick = tx.World().ticketManager.State(chunk.Pos(chunkPos)).CanTickEntities()
+		} else if !canTick {
+			canTick = len(c.viewers) > 0
+		}
+
+		if canTick {
 			if te, ok := e.(TickerEntity); ok {
 				te.Tick(tx, tick)
 			}

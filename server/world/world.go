@@ -80,6 +80,7 @@ type World struct {
 	// be removed from the map.
 	scheduledUpdates *scheduledTickQueue
 	redstone         *redstoneEngine
+	ticketManager    *chunk.TicketManager
 	neighbourUpdates []neighbourUpdate
 
 	viewerMu sync.Mutex
@@ -132,6 +133,27 @@ func (w *World) BlockRegistry() BlockRegistry {
 // Generator returns the Generator used to generate new chunks for the World.
 func (w *World) Generator() Generator {
 	return w.conf.Generator
+}
+
+// TicketManager returns the chunk ticket manager of the World.
+func (w *World) TicketManager() *chunk.TicketManager {
+	return w.ticketManager
+}
+
+// ChunkLevel returns the current ticket level of the chunk at pos.
+func (w *World) ChunkLevel(pos ChunkPos) int {
+	if w.ticketManager == nil {
+		return chunk.LevelEntityTicking
+	}
+	return w.ticketManager.Level(chunk.Pos(pos))
+}
+
+// ChunkState returns the current ChunkState of the chunk at pos.
+func (w *World) ChunkState(pos ChunkPos) chunk.ChunkState {
+	if w.ticketManager == nil {
+		return chunk.StateEntityTicking
+	}
+	return w.ticketManager.State(chunk.Pos(pos))
 }
 
 // execFunc is a function that performs a synchronised transaction on a World.
@@ -1536,11 +1558,16 @@ func (w *World) autoSave() {
 	}
 }
 
-// closeUnusedChunk closes all chunks currently not in use by any viewer.
+// closeUnusedChunks closes all chunks currently not in use by any viewer and not protected by tickets or linger timers.
 func (w *World) closeUnusedChunks(tx *Tx) {
+	if w.ticketManager != nil {
+		w.ticketManager.Reap(tx.CurrentTick())
+	}
 	for pos, c := range w.chunks {
 		if len(c.viewers) == 0 {
-			w.closeChunk(tx, pos, c)
+			if w.ticketManager == nil || w.ticketManager.CanUnload(chunk.Pos(pos), tx.CurrentTick()) {
+				w.closeChunk(tx, pos, c)
+			}
 		}
 	}
 }

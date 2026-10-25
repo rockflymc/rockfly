@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"time"
+
+	"github.com/df-mc/dragonfly/server/world/chunk"
 )
 
 type blockRegistrySetter interface {
@@ -146,6 +148,7 @@ func (conf Config) New() *World {
 		conf.Generator = &lockedGenerator{g: conf.Generator}
 	}
 	w := &World{
+		ticketManager:    chunk.NewTicketManager(200),
 		scheduledUpdates: newScheduledTickQueue(s.CurrentTick),
 		redstone:         newRedstoneEngine(s.CurrentTick),
 		entities:         make(map[*EntityHandle]ChunkPos),
