@@ -38,13 +38,15 @@ func (b *LogBroadcaster) Subscribe() (chan string, []string) {
 	return ch, histCopy
 }
 
-// Unsubscribe removes a subscriber channel.
+// Unsubscribe removes a subscriber channel safely without double-close panics.
 func (b *LogBroadcaster) Unsubscribe(ch chan string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	delete(b.subscribers, ch)
-	close(ch)
+	if _, ok := b.subscribers[ch]; ok {
+		delete(b.subscribers, ch)
+		close(ch)
+	}
 }
 
 // Broadcast sends a message to all active subscribers and appends to history.

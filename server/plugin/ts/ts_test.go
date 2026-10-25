@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -229,4 +230,130 @@ func TestDTSGenerator(t *testing.T) {
 	if !strings.Contains(content, "interface Player") {
 		t.Errorf("expected d.ts to declare Player interface")
 	}
+}
+
+func TestTSPlugin_ConcurrentEventDispatch(t *testing.T) {
+	manifest := plugin.PluginManifest{Name: "ConcurrentPlugin", Version: "1.0.0"}
+	p := NewTSPlugin(manifest)
+
+	code := `
+let counter = 0;
+rockfly.events.on("TestEvent", rockfly.Priority.Normal, (e) => {
+    counter += e.value;
+});
+(globalThis as any).getCounter = () => counter;
+`
+	transpiler := NewTranspiler()
+	js, err := transpiler.Transpile(code)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+
+	if err := p.Load(js); err != nil {
+		t.Fatalf("load error: %v", err)
+	}
+	if err := p.Enable(); err != nil {
+		t.Fatalf("enable error: %v", err)
+	}
+
+	const goroutines = 20
+	const iterations = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				_ = p.DispatchEvent("TestEvent", map[string]any{"value": 1})
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	val, err := p.vm.RunString("getCounter()")
+	if err != nil {
+		t.Fatalf("eval getCounter failed: %v", err)
+	}
+	expected := int64(goroutines * iterations)
+	if val.ToInteger() != expected {
+		t.Fatalf("expected counter %d, got %d", expected, val.ToInteger())
+	}
+
+	_ = p.Disable()
+}
+
+func TestTSPlugin_DisableCleansListeners(t *testing.T) {
+	manifest := plugin.PluginManifest{Name: "DisableTestPlugin", Version: "1.0.0"}
+	p := NewTSPlugin(manifest)
+
+	code := `
+let fired = false;
+rockfly.events.on("CustomEvent", rockfly.Priority.Normal, (e) => {
+    fired = true;
+});
+(globalThis as any).hasFired = () => fired;
+`
+	transpiler := NewTranspiler()
+	js, err := transpiler.Transpile(code)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+
+	if err := p.Load(js); err != nil {
+		t.Fatalf("load error: %v", err)
+	}
+	if err := p.Enable(); err != nil {
+		t.Fatalf("enable error: %v", err)
+	}
+
+	// Disable plugin
+	if err := p.Disable(); err != nil {
+		t.Fatalf("disable error: %v", err)
+	}
+
+	// Dispatch event after disable
+	_ = p.DispatchEvent("CustomEvent", map[string]any{})
+
+	val, err := p.vm.RunString("hasFired()")
+	if err != nil {
+		t.Fatalf("eval hasFired failed: %v", err)
+	}
+	if val.ToBoolean() {
+		t.Fatalf("expected listener not to fire after plugin was disabled")
+	}
+}
+
+func TestTSPlugin_PanicRecovery(t *testing.T) {
+	manifest := plugin.PluginManifest{Name: "PanicPlugin", Version: "1.0.0"}
+	p := NewTSPlugin(manifest)
+
+	code := `
+rockfly.events.on("PanicEvent", rockfly.Priority.Normal, (e) => {
+    throw new Error("Script threw intentional test error");
+});
+`
+	transpiler := NewTranspiler()
+	js, err := transpiler.Transpile(code)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+
+	if err := p.Load(js); err != nil {
+		t.Fatalf("load error: %v", err)
+	}
+	if err := p.Enable(); err != nil {
+		t.Fatalf("enable error: %v", err)
+	}
+
+	err = p.DispatchEvent("PanicEvent", map[string]any{})
+	if err == nil {
+		t.Fatalf("expected error from thrown script exception")
+	}
+	if !strings.Contains(err.Error(), "Script threw intentional test error") {
+		t.Fatalf("expected error message to contain thrown error, got: %v", err)
+	}
+
+	_ = p.Disable()
 }

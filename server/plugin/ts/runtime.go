@@ -19,7 +19,7 @@ type tsEventListener struct {
 
 // TSPlugin represents an active TypeScript/JavaScript plugin executing on the Go heap.
 type TSPlugin struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
 	manifest  plugin.PluginManifest
 	vm        *goja.Runtime
@@ -60,21 +60,22 @@ func (p *TSPlugin) SetTimeout(d time.Duration) {
 
 // Load evaluates the bundled JavaScript source code and extracts lifecycle hooks.
 func (p *TSPlugin) Load(jsSource string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	// Execute with watchdog guard
 	timer := time.AfterFunc(p.timeout, func() {
 		p.vm.Interrupt("plugin load execution timed out")
 	})
+	defer func() {
+		timer.Stop()
+		p.vm.ClearInterrupt()
+	}()
 
 	_, err := p.vm.RunString(jsSource)
-	timer.Stop()
-
 	if err != nil {
-		p.vm.ClearInterrupt()
 		return fmt.Errorf("failed to run plugin script: %w", err)
 	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	// Extract lifecycle hooks if exported
 	if fn, ok := goja.AssertFunction(p.vm.Get("onEnable")); ok {
@@ -90,19 +91,16 @@ func (p *TSPlugin) Load(jsSource string) error {
 // Enable activates the plugin and calls onEnable.
 func (p *TSPlugin) Enable() error {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if p.enabled {
-		p.mu.Unlock()
 		return nil
 	}
 	p.enabled = true
-	onEnable := p.onEnable
-	p.mu.Unlock()
 
-	if onEnable != nil {
-		if _, err := p.callWithTimeout(onEnable, goja.Undefined()); err != nil {
-			p.mu.Lock()
+	if p.onEnable != nil {
+		if _, err := p.callWithTimeoutLocked(p.onEnable, goja.Undefined()); err != nil {
 			p.enabled = false
-			p.mu.Unlock()
 			return fmt.Errorf("onEnable failed: %w", err)
 		}
 	}
@@ -113,25 +111,32 @@ func (p *TSPlugin) Enable() error {
 // Disable deactivates the plugin, clears all listeners, and calls onDisable.
 func (p *TSPlugin) Disable() error {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if !p.enabled {
-		p.mu.Unlock()
 		return nil
 	}
-	onDisable := p.onDisable
+
+	// Clean up event listeners
+	for _, unsub := range p.listeners {
+		if unsub != nil {
+			unsub()
+		}
+	}
 	p.listeners = nil
 	p.eventHandlers = nil
 	p.enabled = false
-	p.mu.Unlock()
 
-	if onDisable != nil {
-		_, _ = p.callWithTimeout(onDisable, goja.Undefined())
+	if p.onDisable != nil {
+		_, _ = p.callWithTimeoutLocked(p.onDisable, goja.Undefined())
 	}
 
 	return nil
 }
 
-// callWithTimeout executes a JS callable with strict timeout watchdog (vm.Interrupt).
-func (p *TSPlugin) callWithTimeout(fn goja.Callable, this goja.Value, args ...goja.Value) (goja.Value, error) {
+// callWithTimeoutLocked executes a JS callable with strict timeout watchdog and panic recovery.
+// MUST be called with p.mu held.
+func (p *TSPlugin) callWithTimeoutLocked(fn goja.Callable, this goja.Value, args ...goja.Value) (res goja.Value, err error) {
 	if fn == nil {
 		return goja.Undefined(), nil
 	}
@@ -144,13 +149,20 @@ func (p *TSPlugin) callWithTimeout(fn goja.Callable, this goja.Value, args ...go
 	timer := time.AfterFunc(timeout, func() {
 		p.vm.Interrupt("script execution watchdog timeout exceeded")
 	})
-	defer timer.Stop()
-
-	res, err := fn(this, args...)
-	if err != nil {
+	defer func() {
+		timer.Stop()
 		p.vm.ClearInterrupt()
-		return nil, err
-	}
+		if r := recover(); r != nil {
+			err = fmt.Errorf("plugin execution panic: %v", r)
+		}
+	}()
 
-	return res, nil
+	return fn(this, args...)
+}
+
+// callWithTimeout executes a JS callable with strict timeout watchdog and acquires p.mu.
+func (p *TSPlugin) callWithTimeout(fn goja.Callable, this goja.Value, args ...goja.Value) (goja.Value, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.callWithTimeoutLocked(fn, this, args...)
 }

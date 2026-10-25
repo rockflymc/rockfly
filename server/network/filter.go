@@ -66,7 +66,7 @@ func NewFilter(opts FilterOptions) *ConnectionFilter {
 	}
 }
 
-// ExtractIP extracts the host IP string from a net.Addr.
+// ExtractIP extracts the host IP string from a net.Addr and normalizes it.
 func ExtractIP(addr net.Addr) string {
 	if addr == nil {
 		return "127.0.0.1"
@@ -74,9 +74,30 @@ func ExtractIP(addr net.Addr) string {
 	str := addr.String()
 	host, _, err := net.SplitHostPort(str)
 	if err != nil {
-		return strings.TrimSpace(str)
+		host = strings.TrimSpace(str)
+	}
+	if parsed := net.ParseIP(host); parsed != nil {
+		return parsed.String()
 	}
 	return strings.TrimSpace(host)
+}
+
+// pruneStale evicts expired tracking records to prevent unbounded memory growth under DoS sweeps.
+func (f *ConnectionFilter) pruneStale(now time.Time) {
+	throttleExpiry := f.opts.ConnectionThrottle * 2
+	if throttleExpiry < time.Minute {
+		throttleExpiry = time.Minute
+	}
+	for ip, t := range f.lastConnect {
+		if now.Sub(t) > throttleExpiry {
+			delete(f.lastConnect, ip)
+		}
+	}
+	for ip, tracker := range f.rateTrackers {
+		if now.Sub(tracker.windowStart) > 5*time.Second {
+			delete(f.rateTrackers, ip)
+		}
+	}
 }
 
 // Allow evaluates an incoming connection attempt against throttle, rate limits, and concurrent caps.
@@ -86,6 +107,11 @@ func (f *ConnectionFilter) Allow(addr net.Addr) (bool, string) {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	// Proactively prune when map size exceeds threshold to cap memory footprint
+	if len(f.lastConnect) > 1000 || len(f.rateTrackers) > 1000 {
+		f.pruneStale(now)
+	}
 
 	// 1. Connection Throttle Check (Paper connection-throttle)
 	if f.opts.ConnectionThrottle > 0 {

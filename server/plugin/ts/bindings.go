@@ -112,9 +112,6 @@ func (p *TSPlugin) bindRockflyAPI() error {
 
 // registerEventListener wires an event listener callback to the internal dispatcher.
 func (p *TSPlugin) registerEventListener(eventName string, prio event.Priority, callback goja.Callable) func() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	entry := &tsEventListener{
 		eventName: strings.ToLower(eventName),
 		priority:  prio,
@@ -125,8 +122,6 @@ func (p *TSPlugin) registerEventListener(eventName string, prio event.Priority, 
 	p.eventHandlers = append(p.eventHandlers, entry)
 
 	return func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
 		for i, h := range p.eventHandlers {
 			if h == entry {
 				p.eventHandlers = append(p.eventHandlers[:i], p.eventHandlers[i+1:]...)
@@ -138,16 +133,21 @@ func (p *TSPlugin) registerEventListener(eventName string, prio event.Priority, 
 
 // DispatchEvent dispatches an event object to registered TypeScript listeners.
 func (p *TSPlugin) DispatchEvent(eventName string, eventObj any) error {
-	p.mu.RLock()
-	handlers := make([]*tsEventListener, len(p.eventHandlers))
-	copy(handlers, p.eventHandlers)
-	p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.enabled {
+		return nil
+	}
 
 	name := strings.ToLower(eventName)
+	handlers := make([]*tsEventListener, len(p.eventHandlers))
+	copy(handlers, p.eventHandlers)
+
 	for _, h := range handlers {
 		if h.eventName == name {
 			val := p.vm.ToValue(eventObj)
-			_, err := p.callWithTimeout(h.callback, goja.Undefined(), val)
+			_, err := p.callWithTimeoutLocked(h.callback, goja.Undefined(), val)
 			if err != nil {
 				return err
 			}
@@ -173,21 +173,17 @@ type dynamicTSCommand struct {
 }
 
 func (c *dynamicTSCommand) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
+	c.plugin.mu.Lock()
+	defer c.plugin.mu.Unlock()
+
+	if !c.plugin.enabled {
+		o.Errorf("Command is unavailable because plugin is disabled")
+		return
+	}
+
 	var pObj any
 	if p, ok := src.(*player.Player); ok {
-		pObj = map[string]any{
-			"name": p.Name(),
-			"uuid": p.UUID().String(),
-			"heal": func(amount float64) {
-				p.Heal(amount, entityHealSource{})
-			},
-			"teleport": func(x, y, z float64) {
-				p.Teleport(mgl64.Vec3{x, y, z})
-			},
-			"sendMessage": func(msg string) {
-				p.Message(msg)
-			},
-		}
+		pObj = wrapPlayer(p, tx)
 	}
 
 	rawArgs := ""
@@ -199,9 +195,93 @@ func (c *dynamicTSCommand) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	valPlayer := c.plugin.vm.ToValue(pObj)
 	valArgs := c.plugin.vm.ToValue(args)
 
-	_, err := c.plugin.callWithTimeout(c.callback, goja.Undefined(), valPlayer, valArgs)
+	_, err := c.plugin.callWithTimeoutLocked(c.callback, goja.Undefined(), valPlayer, valArgs)
 	if err != nil {
 		o.Errorf("Error executing script command: %v", err)
+	}
+}
+
+func wrapPlayer(p *player.Player, tx *world.Tx) map[string]any {
+	if p == nil {
+		return nil
+	}
+	pos := p.Position()
+	return map[string]any{
+		"name": p.Name(),
+		"uuid": p.UUID().String(),
+		"xuid": p.XUID(),
+		"position": map[string]any{
+			"x": pos.X(),
+			"y": pos.Y(),
+			"z": pos.Z(),
+		},
+		"health":    p.Health(),
+		"maxHealth": p.MaxHealth(),
+		"gameMode":  gameModeString(p.GameMode()),
+		"sendMessage": func(msg string) {
+			p.Message(msg)
+		},
+		"teleport": func(val any) {
+			switch v := val.(type) {
+			case map[string]any:
+				var x, y, z float64
+				if fx, ok := toFloat(v["x"]); ok {
+					x = fx
+				}
+				if fy, ok := toFloat(v["y"]); ok {
+					y = fy
+				}
+				if fz, ok := toFloat(v["z"]); ok {
+					z = fz
+				}
+				p.Teleport(mgl64.Vec3{x, y, z})
+			}
+		},
+		"heal": func(amount float64) {
+			p.Heal(amount, entityHealSource{})
+		},
+		"setGameMode": func(mode string) {
+			switch strings.ToLower(mode) {
+			case "survival":
+				p.SetGameMode(world.GameModeSurvival)
+			case "creative":
+				p.SetGameMode(world.GameModeCreative)
+			case "adventure":
+				p.SetGameMode(world.GameModeAdventure)
+			case "spectator":
+				p.SetGameMode(world.GameModeSpectator)
+			}
+		},
+	}
+}
+
+func toFloat(v any) (float64, bool) {
+	switch val := v.(type) {
+	case float64:
+		return val, true
+	case float32:
+		return float64(val), true
+	case int:
+		return float64(val), true
+	case int64:
+		return float64(val), true
+	default:
+		return 0, false
+	}
+}
+
+func gameModeString(gm world.GameMode) string {
+	switch gm {
+	case world.GameModeSurvival:
+		return "survival"
+	case world.GameModeCreative:
+		return "creative"
+	case world.GameModeAdventure:
+		return "adventure"
+	case world.GameModeSpectator:
+		return "spectator"
+	default:
+		return "survival"
 	}
 }
 

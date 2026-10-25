@@ -78,7 +78,7 @@ func (m *WhitelistManager) Load() error {
 	return nil
 }
 
-// Save writes whitelist entries to whitelist.json with formatting.
+// Save writes whitelist entries to whitelist.json atomically with formatting.
 func (m *WhitelistManager) Save() error {
 	m.mu.RLock()
 	list := make([]WhitelistEntry, 0, len(m.entries))
@@ -92,10 +92,16 @@ func (m *WhitelistManager) Save() error {
 		return err
 	}
 
-	if dir := filepath.Dir(m.filePath); dir != "" && dir != "." {
+	dir := filepath.Dir(m.filePath)
+	if dir != "" && dir != "." {
 		_ = os.MkdirAll(dir, 0755)
 	}
-	return os.WriteFile(m.filePath, data, 0644)
+
+	tmpFile := m.filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpFile, m.filePath)
 }
 
 // Enabled reports whether the whitelist is actively enforced.
@@ -114,6 +120,8 @@ func (m *WhitelistManager) SetEnabled(enabled bool) {
 
 // Add adds a player to the whitelist by name and optional UUID.
 func (m *WhitelistManager) Add(name, uuidStr string) error {
+	name = strings.TrimSpace(name)
+	uuidStr = strings.TrimSpace(uuidStr)
 	if name == "" {
 		return fmt.Errorf("player name cannot be empty")
 	}
@@ -135,7 +143,7 @@ func (m *WhitelistManager) Add(name, uuidStr string) error {
 
 // Remove removes a player from the whitelist by name or UUID.
 func (m *WhitelistManager) Remove(nameOrUUID string) error {
-	key := strings.ToLower(nameOrUUID)
+	key := strings.ToLower(strings.TrimSpace(nameOrUUID))
 
 	m.mu.Lock()
 	entry, ok := m.entries[key]
@@ -161,13 +169,16 @@ func (m *WhitelistManager) IsWhitelisted(name, uuidStr string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	name = strings.ToLower(strings.TrimSpace(name))
+	uuidStr = strings.ToLower(strings.TrimSpace(uuidStr))
+
 	if name != "" {
-		if _, ok := m.entries[strings.ToLower(name)]; ok {
+		if _, ok := m.entries[name]; ok {
 			return true
 		}
 	}
 	if uuidStr != "" {
-		if _, ok := m.byUUID[strings.ToLower(uuidStr)]; ok {
+		if _, ok := m.byUUID[uuidStr]; ok {
 			return true
 		}
 	}
