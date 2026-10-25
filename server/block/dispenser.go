@@ -47,9 +47,9 @@ func NewDispenser() Dispenser {
 	m := &sync.RWMutex{}
 	v := make(map[ContainerViewer]struct{})
 	return Dispenser{
-		Facing:    cube.FaceNorth,
-		viewerMu:  m,
-		viewers:   v,
+		Facing:   cube.FaceNorth,
+		viewerMu: m,
+		viewers:  v,
 		inventory: inventory.New(9, func(slot int, before, after item.Stack) {
 			m.RLock()
 			defer m.RUnlock()

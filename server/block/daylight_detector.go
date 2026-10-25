@@ -12,13 +12,13 @@ import (
 )
 
 var (
-	_ world.Block                  = DaylightDetector{}
-	_ world.Item                   = DaylightDetector{}
-	_ world.ScheduledTicker        = DaylightDetector{}
-	_ world.NeighbourUpdateTicker  = DaylightDetector{}
-	_ world.RedstonePowerSource    = DaylightDetector{}
+	_ world.Block                     = DaylightDetector{}
+	_ world.Item                      = DaylightDetector{}
+	_ world.ScheduledTicker           = DaylightDetector{}
+	_ world.NeighbourUpdateTicker     = DaylightDetector{}
+	_ world.RedstonePowerSource       = DaylightDetector{}
 	_ world.RedstoneStrongPowerSource = DaylightDetector{}
-	_ world.RedstoneWeakBlockPowerer = DaylightDetector{}
+	_ world.RedstoneWeakBlockPowerer  = DaylightDetector{}
 )
 
 // DaylightDetector is a redstone sensor that emits redstone power proportional to daylight.
