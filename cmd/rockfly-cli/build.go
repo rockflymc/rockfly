@@ -41,7 +41,8 @@ func BuildPlugin(pluginDir, outDir string) (string, time.Duration, error) {
 
 	var artifactName string
 
-	if isTS {
+	switch {
+	case isTS:
 		transpiler := ts.NewTranspiler()
 		bundledJS, err := transpiler.Bundle(mainPath)
 		if err != nil {
@@ -65,7 +66,7 @@ func BuildPlugin(pluginDir, outDir string) (string, time.Duration, error) {
 		distManifest.Main = artifactName
 		distToml, _ := toml.Marshal(distManifest)
 		_ = os.WriteFile(filepath.Join(outDir, "plugin.toml"), distToml, 0644)
-	} else if isWASM {
+	case isWASM:
 		// Pure Go wasip1 compilation
 		artifactName = "plugin.wasm"
 		outArtifact := filepath.Join(outDir, artifactName)
@@ -80,7 +81,7 @@ func BuildPlugin(pluginDir, outDir string) (string, time.Duration, error) {
 		distManifest.Main = artifactName
 		distToml, _ := toml.Marshal(distManifest)
 		_ = os.WriteFile(filepath.Join(outDir, "plugin.toml"), distToml, 0644)
-	} else {
+	default:
 		return "", 0, fmt.Errorf("unrecognized plugin type: %s", m.Main)
 	}
 
