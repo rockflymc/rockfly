@@ -17,9 +17,9 @@ func registerPlaySound() {
 
 // PlaySoundCmd plays a sound in the world.
 type PlaySoundCmd struct {
-	Sound    string                   `cmd:"sound"`
+	Sound    string                     `cmd:"sound"`
 	Player   cmd.Optional[[]cmd.Target] `cmd:"player"`
-	Position cmd.Optional[mgl64.Vec3] `cmd:"position"`
+	Position cmd.Optional[mgl64.Vec3]   `cmd:"position"`
 }
 
 func (c PlaySoundCmd) Allow(src cmd.Source) bool {
