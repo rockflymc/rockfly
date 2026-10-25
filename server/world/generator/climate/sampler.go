@@ -1,9 +1,8 @@
 package climate
 
 import (
-	"math"
-
 	"github.com/df-mc/dragonfly/server/world"
+	"github.com/df-mc/dragonfly/server/world/biome"
 	"github.com/df-mc/dragonfly/server/world/generator/noise"
 )
 
@@ -33,6 +32,9 @@ func NewSampler(seed int64) *Sampler {
 
 // NewSamplerWithTargets constructs a 6D climate sampler using a custom set of climate targets.
 func NewSamplerWithTargets(seed int64, targets []Target) *Sampler {
+	if len(targets) == 0 {
+		targets = OverworldTargets()
+	}
 	return &Sampler{
 		tempNoise:    noise.NewOctavePerlinFromSeed(seed^0x54656d70, 3, 2.0, 0.5), // "Temp"
 		humidNoise:   noise.NewOctavePerlinFromSeed(seed^0x48756d69, 3, 2.0, 0.5), // "Humi"
@@ -53,6 +55,9 @@ func (s *Sampler) Sample(x, y, z int) Parameters {
 	depthFactor := 0.0
 	if y < 64 {
 		depthFactor = float64(64-y) / 128.0
+		if depthFactor > 1.5 {
+			depthFactor = 1.5
+		}
 	}
 
 	return Parameters{
@@ -73,10 +78,13 @@ func (s *Sampler) BiomeAt(x, y, z int) world.Biome {
 
 // ClosestBiome finds the Biome whose target parameters have the lowest squared Euclidean distance to p.
 func (s *Sampler) ClosestBiome(p Parameters) world.Biome {
-	var bestBiome world.Biome
-	bestDist := math.MaxFloat64
+	if len(s.targets) == 0 {
+		return biome.Plains{}
+	}
+	var bestBiome world.Biome = s.targets[0].Biome
+	bestDist := p.DistanceSq(s.targets[0].Params)
 
-	for i := range s.targets {
+	for i := 1; i < len(s.targets); i++ {
 		t := &s.targets[i]
 		d := p.DistanceSq(t.Params)
 		if d < bestDist {
