@@ -43,6 +43,30 @@ func TestPalettePool_Bytes(t *testing.T) {
 	pool.PutBytes(b2)
 }
 
+func TestPalettePool_NilAndZeroSafety(t *testing.T) {
+	var nilPool *PalettePool
+	if nilPool.GetIndices(10) == nil || len(nilPool.GetIndices(10)) != 10 {
+		t.Fatalf("expected fallback allocation from nil PalettePool")
+	}
+	if nilPool.GetIndices(-5) != nil || nilPool.GetBytes(-5) != nil {
+		t.Fatalf("expected nil from negative capacity")
+	}
+	nilPool.PutIndices([]uint32{1, 2, 3})
+	nilPool.PutBytes([]byte{1, 2, 3})
+
+	zeroPool := &PalettePool{}
+	ind := zeroPool.GetIndices(16)
+	if len(ind) != 16 {
+		t.Fatalf("expected slice from zero-value pool")
+	}
+	zeroPool.PutIndices(ind)
+	bs := zeroPool.GetBytes(32)
+	if len(bs) != 32 {
+		t.Fatalf("expected bytes from zero-value pool")
+	}
+	zeroPool.PutBytes(bs)
+}
+
 func BenchmarkPalettePool_AcquireRelease(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
