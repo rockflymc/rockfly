@@ -133,6 +133,55 @@ func TestLivingEntity_BedrockMetadataSync(t *testing.T) {
 	}
 }
 
+func TestLivingEntity_Snapshot(t *testing.T) {
+	e := NewLivingEntity(nil, 20.0)
+	e.SetPosition(mgl64.Vec3{10, 64, 10})
+	e.SetFallDistance(0)
+
+	snap := e.Snapshot()
+	if snap.Pos != (mgl64.Vec3{10, 64, 10}) {
+		t.Fatalf("expected snapshot pos (10, 64, 10), got %v", snap.Pos)
+	}
+	if snap.Health != 20.0 || snap.MaxHealth != 20.0 {
+		t.Fatalf("expected snapshot hp 20.0/20.0, got %v/%v", snap.Health, snap.MaxHealth)
+	}
+	if !snap.OnGround {
+		t.Fatalf("expected snapshot OnGround=true with fall distance 0")
+	}
+
+	e.SetFallDistance(5.0)
+	snap2 := e.Snapshot()
+	if snap2.OnGround {
+		t.Fatalf("expected snapshot OnGround=false with fall distance > 0")
+	}
+}
+
+func TestLivingEntity_NaNAndNilSafety(t *testing.T) {
+	e := NewLivingEntity(nil, 20.0)
+
+	// NaN damage should be ignored and not corrupt state
+	dealt, vul := e.Hurt(1e300*1e300-1e300*1e300, AttackDamageSource{}) // NaN
+	if vul || dealt != 0 || e.Health() != 20.0 {
+		t.Fatalf("expected NaN damage to be rejected, got dealt=%v, hp=%v", dealt, e.Health())
+	}
+
+	// Negative damage should be rejected
+	dealt, vul = e.Hurt(-5.0, AttackDamageSource{})
+	if vul || dealt != 0 {
+		t.Fatalf("expected negative damage to be rejected")
+	}
+
+	// Nil entity method calls should not panic
+	var nilEnt *LivingEntity
+	if nilEnt.Health() != 0 || nilEnt.MaxHealth() != 0 || !nilEnt.Dead() {
+		t.Fatalf("nil entity should report 0 health and dead=true")
+	}
+	nilSnap := nilEnt.Snapshot()
+	if nilSnap.Health != 0 {
+		t.Fatalf("nil entity snapshot should have 0 health")
+	}
+}
+
 func BenchmarkLivingEntity_Hurt(b *testing.B) {
 	e := NewLivingEntity(nil, 1000000.0)
 	src := AttackDamageSource{}

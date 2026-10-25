@@ -13,14 +13,14 @@ type Health struct {
 
 // NewHealth initializes a Health component with initial and maximum health.
 func NewHealth(health, maxHealth float64) *Health {
-	if maxHealth <= 0 {
+	if math.IsNaN(maxHealth) || math.IsInf(maxHealth, 0) || maxHealth <= 0 {
 		maxHealth = 1
+	}
+	if math.IsNaN(health) || math.IsInf(health, 0) || health < 0 {
+		health = 0
 	}
 	if health > maxHealth {
 		health = maxHealth
-	}
-	if health < 0 {
-		health = 0
 	}
 	h := &Health{}
 	h.current.Store(math.Float64bits(health))
@@ -30,18 +30,27 @@ func NewHealth(health, maxHealth float64) *Health {
 
 // Health returns the current health value.
 func (h *Health) Health() float64 {
+	if h == nil {
+		return 0
+	}
 	return math.Float64frombits(h.current.Load())
 }
 
 // MaxHealth returns the maximum health value.
 func (h *Health) MaxHealth() float64 {
+	if h == nil {
+		return 0
+	}
 	return math.Float64frombits(h.max.Load())
 }
 
 // SetMaxHealth updates the maximum health. If the new max is less than the current
 // health, current health is clamped to max.
 func (h *Health) SetMaxHealth(maxHealth float64) {
-	if maxHealth <= 0 {
+	if h == nil {
+		return
+	}
+	if math.IsNaN(maxHealth) || math.IsInf(maxHealth, 0) || maxHealth <= 0 {
 		maxHealth = 1
 	}
 	h.max.Store(math.Float64bits(maxHealth))
@@ -59,6 +68,12 @@ func (h *Health) SetMaxHealth(maxHealth float64) {
 
 // SetHealth sets current health directly, clamped between 0 and MaxHealth.
 func (h *Health) SetHealth(health float64) {
+	if h == nil {
+		return
+	}
+	if math.IsNaN(health) || math.IsInf(health, 0) {
+		return
+	}
 	maxVal := h.MaxHealth()
 	health = max(0, min(health, maxVal))
 	h.current.Store(math.Float64bits(health))
@@ -67,6 +82,9 @@ func (h *Health) SetHealth(health float64) {
 // AddHealth adds health (or removes if negative), clamping between 0 and MaxHealth.
 // Returns the actual delta applied.
 func (h *Health) AddHealth(delta float64) float64 {
+	if h == nil || math.IsNaN(delta) || math.IsInf(delta, 0) || delta == 0 {
+		return 0
+	}
 	maxVal := h.MaxHealth()
 	for {
 		curBits := h.current.Load()
@@ -80,5 +98,8 @@ func (h *Health) AddHealth(delta float64) float64 {
 
 // Dead returns whether health is 0 or below.
 func (h *Health) Dead() bool {
+	if h == nil {
+		return true
+	}
 	return h.Health() <= 0
 }
