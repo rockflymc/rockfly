@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/plugin"
+	"github.com/df-mc/dragonfly/server/plugin/manifest"
 )
 
 func TestTranspiler_TranspileSpeed(t *testing.T) {
@@ -90,7 +90,7 @@ rockfly.commands.register("heal", "Heals executing player", (p, args) => {
 	}
 
 	// Now run the bundled JS in TSPlugin runtime
-	manifest := plugin.PluginManifest{
+	manifest := manifest.PluginManifest{
 		Name:    "HealPlugin",
 		Version: "1.0.0",
 		Author:  "RockflyTeam",
@@ -132,7 +132,7 @@ rockfly.events.on("BlockBreakEvent", rockfly.Priority.High, (e) => {
 		t.Fatalf("transpilation failed: %v", err)
 	}
 
-	manifest := plugin.PluginManifest{Name: "MiningGuard", Version: "1.0.0"}
+	manifest := manifest.PluginManifest{Name: "MiningGuard", Version: "1.0.0"}
 	p := NewTSPlugin(manifest)
 	if err := p.Load(js); err != nil {
 		t.Fatalf("failed to load plugin: %v", err)
@@ -172,7 +172,7 @@ rockfly.events.on("BlockBreakEvent", rockfly.Priority.High, (e) => {
 }
 
 func TestTSPlugin_ExecutionTimeoutGuard(t *testing.T) {
-	manifest := plugin.PluginManifest{Name: "InfiniteLoopPlugin", Version: "1.0.0"}
+	manifest := manifest.PluginManifest{Name: "InfiniteLoopPlugin", Version: "1.0.0"}
 	p := NewTSPlugin(manifest)
 	p.SetTimeout(50 * time.Millisecond) // 50ms guard
 
