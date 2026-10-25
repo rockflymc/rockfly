@@ -123,4 +123,42 @@ func TestDashboardBroadcaster(t *testing.T) {
 	}
 
 	b.Unsubscribe(ch)
+	// Double unsubscribe should not panic
+	b.Unsubscribe(ch)
+}
+
+func TestDashboardAuthAndCSRF(t *testing.T) {
+	d := NewDashboardServer(&mockDashboardServer{}, DashboardOptions{
+		AuthToken: "secret123",
+	})
+
+	// Test missing auth -> 401
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/commands", bytes.NewBufferString(`{"command": "help"}`))
+	w1 := httptest.NewRecorder()
+	d.handleCommands(w1, req1)
+	if w1.Result().StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized, got %d", w1.Result().StatusCode)
+	}
+
+	// Test valid auth but foreign CSRF origin -> 403
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/commands", bytes.NewBufferString(`{"command": "help"}`))
+	req2.Header.Set("Authorization", "Bearer secret123")
+	req2.Header.Set("Origin", "http://malicious-site.com")
+	req2.Host = "127.0.0.1:8080"
+	w2 := httptest.NewRecorder()
+	d.handleCommands(w2, req2)
+	if w2.Result().StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden for cross-origin request, got %d", w2.Result().StatusCode)
+	}
+
+	// Test valid auth and matching origin -> 200
+	req3 := httptest.NewRequest(http.MethodPost, "/api/v1/commands", bytes.NewBufferString(`{"command": "help"}`))
+	req3.Header.Set("Authorization", "Bearer secret123")
+	req3.Header.Set("Origin", "http://127.0.0.1:8080")
+	req3.Host = "127.0.0.1:8080"
+	w3 := httptest.NewRecorder()
+	d.handleCommands(w3, req3)
+	if w3.Result().StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d", w3.Result().StatusCode)
+	}
 }
