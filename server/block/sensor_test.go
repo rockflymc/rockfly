@@ -2,6 +2,7 @@ package block
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -315,4 +316,77 @@ func BenchmarkTarget_HitCalculation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = CalculateTargetPower(impact, pos, face)
 	}
+}
+
+func TestSensors_NilAndBoundarySafety(t *testing.T) {
+	d := DaylightDetector{}
+	target := Target{}
+	tc := NewTrappedChest()
+	sculk := SculkSensor{}
+	hook := TripwireHook{Facing: cube.North}
+
+	// 1. Daylight detector negative time & nil Tx
+	if p := CalculateDaylightPower(-5000, false); p < 0 || p > 15 {
+		t.Fatalf("expected daylight power in [0, 15], got %d", p)
+	}
+	d.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	d.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	if d.Activate(cube.Pos{0, 0, 0}, cube.FaceUp, nil, nil, nil) {
+		t.Fatal("expected Activate with nil tx to return false")
+	}
+
+	// 2. Target NaN/Inf & nil Tx
+	nanVec := mgl64.Vec3{math.NaN(), 1.0, 2.0}
+	if p := CalculateTargetPower(nanVec, cube.Pos{0, 64, 0}, cube.FaceNorth); p < 1 || p > 15 {
+		t.Fatalf("expected safe target power for NaN vector, got %d", p)
+	}
+	target.Hit(cube.Pos{0, 0, 0}, nil, cube.Pos{0, 0, 0}.Vec3Centre(), cube.FaceNorth, false)
+	target.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+
+	// 3. Trapped chest nil Tx & nil mutex
+	tc.AddViewer(nil, nil, cube.Pos{0, 0, 0})
+	tc.RemoveViewer(nil, nil, cube.Pos{0, 0, 0})
+	tc.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	nakedTC := TrappedChest{}
+	if p := nakedTC.RedstonePower(cube.Pos{0, 0, 0}, nil, cube.FaceNorth); p != 0 {
+		t.Fatalf("expected 0 power from naked trapped chest, got %d", p)
+	}
+
+	// 4. Sculk sensor nil Tx & invalid frequencies
+	if sculk.Trigger(cube.Pos{0, 0, 0}, nil, VibrationFrequency(999)) {
+		t.Fatal("expected invalid frequency trigger to return false")
+	}
+	if sculk.Trigger(cube.Pos{0, 0, 0}, nil, VibrationFrequency(1)) {
+		t.Fatal("expected nil tx trigger to return false")
+	}
+	sculk.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+
+	// 5. Tripwire hook nil Tx
+	hook.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	hook.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	if attached, powered := hook.CheckLine(cube.Pos{0, 0, 0}, nil); attached || powered {
+		t.Fatal("expected CheckLine with nil tx to return false, false")
+	}
+
+	// 6. World boundary out-of-bounds safety
+	w := newTestWorld()
+	w.Do(func(tx *world.Tx) {
+		r := tx.Range()
+		outPos := cube.Pos{0, r.Max() + 10, 0}
+
+		d.NeighbourUpdateTick(outPos, outPos, tx)
+		d.ScheduledTick(outPos, tx, nil)
+
+		target.Hit(outPos, tx, outPos.Vec3Centre(), cube.FaceNorth, false)
+		target.ScheduledTick(outPos, tx, nil)
+
+		tc.ScheduledTick(outPos, tx, nil)
+
+		sculk.Trigger(outPos, tx, VibrationFrequency(1))
+		sculk.ScheduledTick(outPos, tx, nil)
+
+		hook.NeighbourUpdateTick(outPos, outPos, tx)
+		hook.ScheduledTick(outPos, tx, nil)
+		hook.CheckLine(outPos, tx)
+	}).Wait(context.Background())
 }

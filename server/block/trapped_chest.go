@@ -98,34 +98,47 @@ func (c TrappedChest) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face cube.
 
 // AddViewer adds a viewer and plays the open chest animation and sound.
 func (c TrappedChest) AddViewer(v ContainerViewer, tx *world.Tx, pos cube.Pos) {
+	if c.viewerMu == nil {
+		return
+	}
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
-	if len(c.viewers) == 0 {
-		for _, viewer := range tx.Viewers(pos.Vec3()) {
-			viewer.ViewBlockAction(pos, OpenAction{})
+	if tx != nil && !pos.OutOfBounds(tx.Range()) {
+		if len(c.viewers) == 0 {
+			for _, viewer := range tx.Viewers(pos.Vec3()) {
+				viewer.ViewBlockAction(pos, OpenAction{})
+			}
+			tx.PlaySound(pos.Vec3Centre(), sound.ChestOpen{})
 		}
-		tx.PlaySound(pos.Vec3Centre(), sound.ChestOpen{})
+		tx.ScheduleBlockUpdate(pos, c, redstoneTicks(1))
 	}
 	c.viewers[v] = struct{}{}
-	tx.ScheduleBlockUpdate(pos, c, redstoneTicks(1))
 }
 
 // RemoveViewer removes a viewer and closes the chest when empty.
 func (c TrappedChest) RemoveViewer(v ContainerViewer, tx *world.Tx, pos cube.Pos) {
+	if c.viewerMu == nil {
+		return
+	}
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
 	delete(c.viewers, v)
-	if len(c.viewers) == 0 {
-		for _, viewer := range tx.Viewers(pos.Vec3()) {
-			viewer.ViewBlockAction(pos, CloseAction{})
+	if tx != nil && !pos.OutOfBounds(tx.Range()) {
+		if len(c.viewers) == 0 {
+			for _, viewer := range tx.Viewers(pos.Vec3()) {
+				viewer.ViewBlockAction(pos, CloseAction{})
+			}
+			tx.PlaySound(pos.Vec3Centre(), sound.ChestClose{})
 		}
-		tx.PlaySound(pos.Vec3Centre(), sound.ChestClose{})
+		tx.ScheduleBlockUpdate(pos, c, redstoneTicks(1))
 	}
-	tx.ScheduleBlockUpdate(pos, c, redstoneTicks(1))
 }
 
 // ScheduledTick updates the block state when viewer count changes.
 func (c TrappedChest) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	tx.SetBlock(pos, c, nil)
 }
 
@@ -154,6 +167,9 @@ func (c TrappedChest) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx 
 // BreakInfo ...
 func (c TrappedChest) BreakInfo() BreakInfo {
 	return newBreakInfo(2.5, alwaysHarvestable, axeEffective, oneOf(NewTrappedChest())).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		if c.inventory != nil {
 			for _, i := range c.inventory.Clear() {
 				dropItem(tx, i, pos.Vec3Centre())
