@@ -33,6 +33,7 @@ type Server interface {
 type DashboardOptions struct {
 	Addr          string
 	MaxLogHistory int
+	AuthToken     string
 }
 
 // DefaultDashboardOptions returns standard configuration for the dashboard.
@@ -40,6 +41,7 @@ func DefaultDashboardOptions() DashboardOptions {
 	return DashboardOptions{
 		Addr:          "127.0.0.1:8080",
 		MaxLogHistory: 200,
+		AuthToken:     "",
 	}
 }
 
@@ -267,13 +269,50 @@ type commandResponse struct {
 	Errors   []string `json:"errors"`
 }
 
+// isAuthorized verifies the request against the configured AuthToken.
+func (d *DashboardServer) isAuthorized(r *http.Request) bool {
+	if d.opts.AuthToken == "" {
+		return true
+	}
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") && strings.TrimPrefix(auth, "Bearer ") == d.opts.AuthToken {
+		return true
+	}
+	if r.Header.Get("X-Auth-Token") == d.opts.AuthToken {
+		return true
+	}
+	if r.URL.Query().Get("token") == d.opts.AuthToken {
+		return true
+	}
+	return false
+}
+
+// formatSSEData replaces unescaped newlines to preserve SSE protocol boundary integrity.
+func formatSSEData(line string) string {
+	return strings.ReplaceAll(line, "\n", " ")
+}
+
 func (d *DashboardServer) handleCommands(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	if !d.isAuthorized(r) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// CSRF Origin verification: reject cross-origin posts
+	if origin := r.Header.Get("Origin"); origin != "" {
+		if !strings.Contains(origin, r.Host) {
+			http.Error(w, "Cross-origin requests forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
 	if err != nil {
 		http.Error(w, "Read error", http.StatusBadRequest)
 		return
@@ -329,11 +368,27 @@ func (d *DashboardServer) handleCommands(w http.ResponseWriter, r *http.Request)
 
 	if d.srv != nil && d.srv.World() != nil {
 		_, _ = world.Call(context.Background(), d.srv.World(), func(tx *world.Tx) (bool, error) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					src.mu.Lock()
+					src.errors = append(src.errors, fmt.Sprintf("panic: %v", rec))
+					src.mu.Unlock()
+				}
+			}()
 			command.Execute(args, src, tx)
 			return true, nil
 		})
 	} else {
-		command.Execute(args, src, nil)
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					src.mu.Lock()
+					src.errors = append(src.errors, fmt.Sprintf("panic: %v", rec))
+					src.mu.Unlock()
+				}
+			}()
+			command.Execute(args, src, nil)
+		}()
 	}
 
 	msgs, errs := src.Results()
@@ -352,6 +407,11 @@ func (d *DashboardServer) handleCommands(w http.ResponseWriter, r *http.Request)
 }
 
 func (d *DashboardServer) handleStream(w http.ResponseWriter, r *http.Request) {
+	if !d.isAuthorized(r) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
@@ -367,7 +427,7 @@ func (d *DashboardServer) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial log history
 	for _, h := range history {
-		_, _ = fmt.Fprintf(w, "event: log\ndata: %s\n\n", h)
+		_, _ = fmt.Fprintf(w, "event: log\ndata: %s\n\n", formatSSEData(h))
 	}
 
 	// Send initial metrics
@@ -386,7 +446,7 @@ func (d *DashboardServer) handleStream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			_, _ = fmt.Fprintf(w, "event: log\ndata: %s\n\n", line)
+			_, _ = fmt.Fprintf(w, "event: log\ndata: %s\n\n", formatSSEData(line))
 			flusher.Flush()
 		case <-ticker.C:
 			metricsData, _ := json.Marshal(d.getStatusPayload())

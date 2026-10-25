@@ -14,6 +14,17 @@ import (
 	"github.com/go-gl/mathgl/mgl64"
 )
 
+var (
+	// MoveBus is a high-throughput, zero-allocation typed bus for player movement events.
+	MoveBus = event.NewTypedBus[PlayerMoveEvent]()
+	// BlockBreakBus is a high-throughput, zero-allocation typed bus for player block break events.
+	BlockBreakBus = event.NewTypedBus[PlayerBlockBreakEvent]()
+	// DamageBus is a high-throughput, zero-allocation typed bus for player damage events.
+	DamageBus = event.NewTypedBus[PlayerDamageEvent]()
+	// AttackBus is a high-throughput, zero-allocation typed bus for player attack entity events.
+	AttackBus = event.NewTypedBus[PlayerAttackEntityEvent]()
+)
+
 // PlayerChatEvent is dispatched when a player attempts to send a chat message.
 type PlayerChatEvent struct {
 	event.BaseCancellable

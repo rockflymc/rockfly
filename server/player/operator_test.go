@@ -108,4 +108,18 @@ func TestBanManager(t *testing.T) {
 	if banned, _ := mgr2.IsIPBanned("192.168.1.100"); banned {
 		t.Errorf("expected IP to be unbanned")
 	}
+
+	// Test IPv6 canonicalization
+	if err := mgr2.BanIP("2001:0db8:0000:0000:0000:0000:0000:0001", "IPv6 attack", "Console"); err != nil {
+		t.Fatalf("failed to ban ipv6: %v", err)
+	}
+	if banned, _ := mgr2.IsIPBanned("2001:db8::1"); !banned {
+		t.Errorf("expected compressed IPv6 representation to be banned")
+	}
+	if err := mgr2.PardonIP("2001:db8::1"); err != nil {
+		t.Fatalf("failed to pardon compressed IPv6: %v", err)
+	}
+	if banned, _ := mgr2.IsIPBanned("2001:0db8::1"); banned {
+		t.Errorf("expected IPv6 to be pardoned")
+	}
 }
