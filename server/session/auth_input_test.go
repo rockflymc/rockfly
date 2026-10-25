@@ -20,13 +20,13 @@ type dummyControllable struct {
 	flying   bool
 }
 
-func (d *dummyControllable) Position() mgl64.Vec3       { return d.pos }
-func (d *dummyControllable) UUID() uuid.UUID            { return d.id }
-func (d *dummyControllable) GameMode() world.GameMode   { return d.gameMode }
-func (d *dummyControllable) Gliding() bool              { return d.gliding }
-func (d *dummyControllable) Flying() bool               { return d.flying }
-func (d *dummyControllable) Swimming() bool             { return false }
-func (d *dummyControllable) FlightSpeed() float64       { return 1.5 }
+func (d *dummyControllable) Position() mgl64.Vec3              { return d.pos }
+func (d *dummyControllable) UUID() uuid.UUID                   { return d.id }
+func (d *dummyControllable) GameMode() world.GameMode          { return d.gameMode }
+func (d *dummyControllable) Gliding() bool                     { return d.gliding }
+func (d *dummyControllable) Flying() bool                      { return d.flying }
+func (d *dummyControllable) Swimming() bool                    { return false }
+func (d *dummyControllable) FlightSpeed() float64              { return 1.5 }
 func (d *dummyControllable) Move(mgl64.Vec3, float64, float64) {}
 
 func TestMovementValidator_NormalWalking(t *testing.T) {

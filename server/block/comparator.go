@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	_ world.Block                  = Comparator{}
-	_ world.Item                   = Comparator{}
-	_ world.ScheduledTicker        = Comparator{}
-	_ world.NeighbourUpdateTicker  = Comparator{}
-	_ world.RedstonePowerSource    = Comparator{}
+	_ world.Block                    = Comparator{}
+	_ world.Item                     = Comparator{}
+	_ world.ScheduledTicker          = Comparator{}
+	_ world.NeighbourUpdateTicker    = Comparator{}
+	_ world.RedstonePowerSource      = Comparator{}
 	_ world.RedstoneWeakBlockPowerer = Comparator{}
-	_ world.NBTer                  = Comparator{}
+	_ world.NBTer                    = Comparator{}
 )
 
 // ComparatorMode represents the operating mode of a redstone comparator.
