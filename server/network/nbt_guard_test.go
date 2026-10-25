@@ -13,7 +13,7 @@ func TestNBTGuard_NormalPayload(t *testing.T) {
 	guard := NewNBTGuard(DefaultNBTGuardConfig())
 
 	data := map[string]any{
-		"Name": "Steve",
+		"Name":   "Steve",
 		"Health": float32(20.0),
 		"Inventory": []any{
 			map[string]any{"Slot": byte(0), "Count": byte(64), "Item": "minecraft:apple"},
