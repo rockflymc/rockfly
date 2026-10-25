@@ -13,6 +13,10 @@ import (
 func TestEndDimensions(t *testing.T) {
 	world.DefaultBlockRegistry.Finalize()
 	reg := world.DefaultBlockRegistry
+
+	var nilEnd *end.End
+	nilEnd.GenerateChunk(world.ChunkPos{0, 0}, nil)
+
 	endStoneRID := reg.BlockRuntimeID(block.EndStone{})
 	airRID := reg.BlockRuntimeID(block.Air{})
 

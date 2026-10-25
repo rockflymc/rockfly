@@ -14,6 +14,9 @@ func TestNetherBoundaries(t *testing.T) {
 	world.DefaultBlockRegistry.Finalize()
 	reg := world.DefaultBlockRegistry
 
+	var nilNether *nether.Nether
+	nilNether.GenerateChunk(world.ChunkPos{0, 0}, nil)
+
 	bedrockRID := reg.BlockRuntimeID(block.Bedrock{})
 	lavaRID := reg.BlockRuntimeID(block.Lava{Still: true, Depth: 8})
 
