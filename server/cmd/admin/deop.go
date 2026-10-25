@@ -31,6 +31,9 @@ func (c Deop) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 			p.SetOp(false)
 			p.SetOpLevel(0)
 			_ = player.DefaultOperatorManager().Deop(p.Name())
+			if p.UUID().String() != "" {
+				_ = player.DefaultOperatorManager().Deop(p.UUID().String())
+			}
 			p.Message("§eYou are no longer op!")
 			o.Printf("Made %s no longer a server operator", p.Name())
 		} else if nt, ok := target.(cmd.NamedTarget); ok {

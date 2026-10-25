@@ -97,7 +97,7 @@ func (m *BanManager) Load() error {
 	return nil
 }
 
-// Save writes both player and IP bans to disk.
+// Save writes both player and IP bans to disk atomically.
 func (m *BanManager) Save() error {
 	m.mu.RLock()
 	pEntries := make([]BanEntry, 0, len(m.players))
@@ -115,10 +115,15 @@ func (m *BanManager) Save() error {
 	if err != nil {
 		return err
 	}
-	if dir := filepath.Dir(m.playerFilePath); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0755)
+	dirP := filepath.Dir(m.playerFilePath)
+	if dirP != "" && dirP != "." {
+		_ = os.MkdirAll(dirP, 0755)
 	}
-	if err := os.WriteFile(m.playerFilePath, pData, 0644); err != nil {
+	tmpPlayerFile := m.playerFilePath + ".tmp"
+	if err := os.WriteFile(tmpPlayerFile, pData, 0644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPlayerFile, m.playerFilePath); err != nil {
 		return err
 	}
 
@@ -126,10 +131,15 @@ func (m *BanManager) Save() error {
 	if err != nil {
 		return err
 	}
-	if dir := filepath.Dir(m.ipFilePath); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0755)
+	dirIP := filepath.Dir(m.ipFilePath)
+	if dirIP != "" && dirIP != "." {
+		_ = os.MkdirAll(dirIP, 0755)
 	}
-	return os.WriteFile(m.ipFilePath, ipData, 0644)
+	tmpIPFile := m.ipFilePath + ".tmp"
+	if err := os.WriteFile(tmpIPFile, ipData, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpIPFile, m.ipFilePath)
 }
 
 // BanPlayer adds a player to the banned players list.
@@ -201,9 +211,11 @@ func (m *BanManager) IsPlayerBanned(nameOrUUID string) (bool, string) {
 // BanIP adds an IP address to the banned IPs list.
 func (m *BanManager) BanIP(ip, reason, source string) error {
 	ip = strings.TrimSpace(ip)
-	if parsed := net.ParseIP(ip); parsed == nil {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
 		return fmt.Errorf("invalid IP address %q", ip)
 	}
+	canonicalIP := parsed.String()
 
 	if reason == "" {
 		reason = "Banned by an operator."
@@ -213,7 +225,7 @@ func (m *BanManager) BanIP(ip, reason, source string) error {
 	}
 
 	entry := IPBanEntry{
-		IP:      ip,
+		IP:      canonicalIP,
 		Created: time.Now().Format("2006-01-02 15:04:05 -0700"),
 		Source:  source,
 		Expires: "forever",
@@ -221,7 +233,7 @@ func (m *BanManager) BanIP(ip, reason, source string) error {
 	}
 
 	m.mu.Lock()
-	m.ips[ip] = entry
+	m.ips[canonicalIP] = entry
 	m.mu.Unlock()
 
 	return m.Save()
@@ -230,6 +242,9 @@ func (m *BanManager) BanIP(ip, reason, source string) error {
 // PardonIP removes an IP from the banned IPs list.
 func (m *BanManager) PardonIP(ip string) error {
 	ip = strings.TrimSpace(ip)
+	if parsed := net.ParseIP(ip); parsed != nil {
+		ip = parsed.String()
+	}
 
 	m.mu.Lock()
 	if _, ok := m.ips[ip]; !ok {
@@ -248,6 +263,9 @@ func (m *BanManager) IsIPBanned(ip string) (bool, string) {
 	defer m.mu.RUnlock()
 
 	ip = strings.TrimSpace(ip)
+	if parsed := net.ParseIP(ip); parsed != nil {
+		ip = parsed.String()
+	}
 	if entry, ok := m.ips[ip]; ok {
 		return true, entry.Reason
 	}

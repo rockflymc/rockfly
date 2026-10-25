@@ -1,6 +1,7 @@
 package event
 
 import (
+	"log/slog"
 	"reflect"
 	"slices"
 	"sync"
@@ -180,12 +181,33 @@ func (b *Bus) Publish(event any) {
 	}
 
 	cancellable, isCancellable := event.(Cancellable)
+	resettable, isResettable := event.(ResettableCancellable)
 
 	for _, l := range *cached {
 		if isCancellable && l.ignoreCancelled && cancellable.Cancelled() {
 			continue
 		}
-		l.invoke(event)
+
+		var wasCancelled bool
+		if l.priority == PriorityMonitor && isResettable {
+			wasCancelled = cancellable.Cancelled()
+		}
+
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("recovered panic in event listener",
+						"priority", l.priority.String(),
+						"error", r,
+					)
+				}
+			}()
+			l.invoke(event)
+		}()
+
+		if l.priority == PriorityMonitor && isResettable && cancellable.Cancelled() != wasCancelled {
+			resettable.SetCancelled(wasCancelled)
+		}
 	}
 }
 
