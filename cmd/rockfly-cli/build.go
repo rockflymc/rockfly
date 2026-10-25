@@ -28,9 +28,15 @@ func BuildPlugin(pluginDir, outDir string) (string, time.Duration, error) {
 		return "", 0, fmt.Errorf("invalid plugin.toml: %w", err)
 	}
 
+	pluginDir = filepath.Clean(pluginDir)
+	if filepath.IsAbs(m.Main) || strings.Contains(m.Main, "..") {
+		return "", 0, fmt.Errorf("plugin manifest 'main' must be a relative path inside the plugin directory (got %q)", m.Main)
+	}
+
 	if outDir == "" {
 		outDir = filepath.Join(pluginDir, "dist")
 	}
+	outDir = filepath.Clean(outDir)
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", 0, fmt.Errorf("failed to create output dir %s: %w", outDir, err)
 	}
@@ -69,9 +75,13 @@ func BuildPlugin(pluginDir, outDir string) (string, time.Duration, error) {
 	case isWASM:
 		// Pure Go wasip1 compilation
 		artifactName = "plugin.wasm"
-		outArtifact := filepath.Join(outDir, artifactName)
+		outArtifact, absErr := filepath.Abs(filepath.Join(outDir, artifactName))
+		if absErr != nil {
+			return "", 0, absErr
+		}
 
-		cmd := exec.Command("go", "build", "-o", outArtifact, pluginDir)
+		cmd := exec.Command("go", "build", "-o", outArtifact, ".")
+		cmd.Dir = pluginDir
 		cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm", "CGO_ENABLED=0")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", 0, fmt.Errorf("go wasip1 build failed: %w\n%s", err, string(out))

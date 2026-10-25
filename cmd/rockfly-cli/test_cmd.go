@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/df-mc/dragonfly/server/plugin"
@@ -50,6 +51,9 @@ func TestPlugin(pluginDir string) (time.Duration, error) {
 }
 
 func copyDir(src, dst string) error {
+	src = filepath.Clean(src)
+	dst = filepath.Clean(dst)
+
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
@@ -59,10 +63,14 @@ func copyDir(src, dst string) error {
 	}
 
 	for _, e := range entries {
+		// Prevent copying symlinks or hidden directories to avoid recursion
+		if e.Type()&os.ModeSymlink != 0 {
+			continue
+		}
 		s := filepath.Join(src, e.Name())
 		d := filepath.Join(dst, e.Name())
 		if e.IsDir() {
-			if e.Name() == "dist" || e.Name() == ".git" {
+			if e.Name() == "dist" || e.Name() == ".git" || strings.HasPrefix(e.Name(), ".") {
 				continue
 			}
 			if err := copyDir(s, d); err != nil {
