@@ -10,13 +10,13 @@ import (
 )
 
 var (
-	_ world.Block                  = Observer{}
-	_ world.Item                   = Observer{}
-	_ world.NeighbourUpdateTicker  = Observer{}
-	_ world.ScheduledTicker        = Observer{}
-	_ world.RedstonePowerSource    = Observer{}
+	_ world.Block                     = Observer{}
+	_ world.Item                      = Observer{}
+	_ world.NeighbourUpdateTicker     = Observer{}
+	_ world.ScheduledTicker           = Observer{}
+	_ world.RedstonePowerSource       = Observer{}
 	_ world.RedstoneStrongPowerSource = Observer{}
-	_ world.RedstoneWeakBlockPowerer = Observer{}
+	_ world.RedstoneWeakBlockPowerer  = Observer{}
 )
 
 // Observer is a redstone component that observes changes in the block facing it and emits a 1-redstone-tick
