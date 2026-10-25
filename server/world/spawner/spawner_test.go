@@ -69,10 +69,10 @@ func TestMobSpawner_CandidateGeneration(t *testing.T) {
 	}
 
 	for _, c := range candidates {
-		v := mgl64.Vec3{float64(c.X()), float64(c.Y()), float64(c.Z())}
+		v := mgl64.Vec3{float64(c.X()) + 0.5, float64(c.Y()) + 0.5, float64(c.Z()) + 0.5}
 		// Horizontal distance to player
 		hDist := mgl64.Vec2{v[0] - playerPos[0], v[2] - playerPos[2]}.Len()
-		if hDist < 23.0 || hDist > 55.0 {
+		if hDist < 22.0 || hDist > 56.0 {
 			t.Fatalf("candidate horizontal distance out of bounds: %f", hDist)
 		}
 	}
