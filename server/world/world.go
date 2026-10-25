@@ -52,6 +52,7 @@ type World struct {
 
 	set     *Settings
 	handler atomic.Pointer[Handler]
+	bridge  *eventWorldBridge
 
 	weather
 
@@ -1344,6 +1345,9 @@ func (w *World) removeViewer(tx *Tx, pos ChunkPos, loader *Loader) {
 func (w *World) Handler() Handler {
 	if w == nil {
 		return NopHandler{}
+	}
+	if w.bridge != nil {
+		return w.bridge
 	}
 	return &eventWorldBridge{w: w}
 }

@@ -55,12 +55,20 @@ func (b *eventBridge) HandleCommandExecution(ctx *Context, command cmd.Command, 
 }
 
 func (b *eventBridge) HandleMove(ctx *Context, newPos mgl64.Vec3, newRot cube.Rotation) {
+	if b == nil || b.p == nil {
+		return
+	}
 	e := &PlayerMoveEvent{
 		Player:  b.p,
 		From:    b.p.Position(),
 		To:      newPos,
 		FromRot: b.p.Rotation(),
 		ToRot:   newRot,
+	}
+	MoveBus.Publish(e)
+	if e.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {
@@ -171,12 +179,20 @@ func (b *eventBridge) HandleHeal(ctx *Context, health *float64, src world.Healin
 }
 
 func (b *eventBridge) HandleHurt(ctx *Context, damage *float64, immune bool, attackImmunity *time.Duration, src world.DamageSource) {
+	if b == nil || b.p == nil {
+		return
+	}
 	e := &PlayerDamageEvent{
 		Player:         b.p,
 		Damage:         damage,
 		Immune:         immune,
 		AttackImmunity: attackImmunity,
 		Source:         src,
+	}
+	DamageBus.Publish(e)
+	if e.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {
@@ -258,10 +274,17 @@ func (b *eventBridge) HandleFireExtinguish(ctx *Context, pos cube.Pos) {
 }
 
 func (b *eventBridge) HandleStartBreak(ctx *Context, pos cube.Pos) {
+	if b == nil || b.p == nil {
+		return
+	}
+	var bl world.Block
+	if b.p.tx != nil {
+		bl = b.p.tx.Block(pos)
+	}
 	e := &PlayerStartBreakEvent{
 		Player: b.p,
 		Pos:    pos,
-		Block:  b.p.tx.Block(pos),
+		Block:  bl,
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {
@@ -274,12 +297,24 @@ func (b *eventBridge) HandleStartBreak(ctx *Context, pos cube.Pos) {
 }
 
 func (b *eventBridge) HandleBlockBreak(ctx *Context, pos cube.Pos, drops *[]item.Stack, xp *int) {
+	if b == nil || b.p == nil {
+		return
+	}
+	var bl world.Block
+	if b.p.tx != nil {
+		bl = b.p.tx.Block(pos)
+	}
 	e := &PlayerBlockBreakEvent{
 		Player: b.p,
 		Pos:    pos,
-		Block:  b.p.tx.Block(pos),
+		Block:  bl,
 		Drops:  drops,
 		XP:     xp,
+	}
+	BlockBreakBus.Publish(e)
+	if e.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {
@@ -407,12 +442,20 @@ func (b *eventBridge) HandleItemConsume(ctx *Context, it item.Stack) {
 }
 
 func (b *eventBridge) HandleAttackEntity(ctx *Context, e world.Entity, force, height *float64, critical *bool) {
+	if b == nil || b.p == nil {
+		return
+	}
 	ev := &PlayerAttackEntityEvent{
 		Player:   b.p,
 		Entity:   e,
 		Force:    force,
 		Height:   height,
 		Critical: critical,
+	}
+	AttackBus.Publish(ev)
+	if ev.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(ev)
 	if ev.Cancelled() {
