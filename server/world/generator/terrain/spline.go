@@ -30,10 +30,10 @@ func NewSpline(points ...SplinePoint) *Spline {
 // Compute evaluates the spline at x using cubic Hermite interpolation between knots
 // and linear tangent extrapolation beyond the domain boundaries.
 func (s *Spline) Compute(x float64) float64 {
-	n := len(s.points)
-	if n == 0 {
+	if s == nil || len(s.points) == 0 {
 		return 0
 	}
+	n := len(s.points)
 	if n == 1 {
 		return s.points[0].Value
 	}

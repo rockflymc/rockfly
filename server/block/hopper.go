@@ -76,8 +76,10 @@ func (Hopper) CanRedstoneWireStepDown(cube.Pos, cube.Pos, *world.Tx) bool {
 func (h Hopper) BreakInfo() BreakInfo {
 	return newBreakInfo(3, pickaxeHarvestable, pickaxeEffective, oneOf(Hopper{})).withBlastResistance(4.8).withBreakHandler(func(pos cube.Pos, tx *world.Tx, u item.User) {
 		removeHopperState(pos)
-		for _, i := range h.Inventory(tx, pos).Clear() {
-			dropItem(tx, i, pos.Vec3())
+		if inv := h.Inventory(tx, pos); inv != nil {
+			for _, i := range inv.Clear() {
+				dropItem(tx, i, pos.Vec3())
+			}
 		}
 	})
 }

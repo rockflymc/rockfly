@@ -20,6 +20,10 @@ type GameModeSelf struct {
 	Mode string `cmd:"gameMode"`
 }
 
+func (c GameModeSelf) Allow(src cmd.Source) bool {
+	return isAllowed(src)
+}
+
 func (c GameModeSelf) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	p, ok := src.(*player.Player)
 	if !ok {
@@ -39,6 +43,10 @@ func (c GameModeSelf) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 type GameModeTarget struct {
 	Mode   string       `cmd:"gameMode"`
 	Target []cmd.Target `cmd:"player"`
+}
+
+func (c GameModeTarget) Allow(src cmd.Source) bool {
+	return isAllowed(src)
 }
 
 func (c GameModeTarget) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {

@@ -51,6 +51,9 @@ func newSubsystemTracker(name string) *SubsystemTracker {
 }
 
 func (s *SubsystemTracker) record(dur time.Duration) {
+	if dur < 0 {
+		dur = 0
+	}
 	s.count++
 	s.totalDuration += dur
 	if dur < s.minDuration {
@@ -119,7 +122,16 @@ func NewProfiler() *Profiler {
 
 // Record records execution duration for the given subsystem.
 func (p *Profiler) Record(subsystem string, duration time.Duration) {
+	if p == nil {
+		return
+	}
+	if duration < 0 {
+		duration = 0
+	}
 	p.mu.Lock()
+	if p.trackers == nil {
+		p.trackers = make(map[string]*SubsystemTracker)
+	}
 	t, ok := p.trackers[subsystem]
 	if !ok {
 		t = newSubsystemTracker(subsystem)
@@ -131,6 +143,9 @@ func (p *Profiler) Record(subsystem string, duration time.Duration) {
 
 // Time starts a timer and returns a stop function that records the elapsed duration.
 func (p *Profiler) Time(subsystem string) func() {
+	if p == nil {
+		return func() {}
+	}
 	start := time.Now()
 	return func() {
 		p.Record(subsystem, time.Since(start))
@@ -139,34 +154,58 @@ func (p *Profiler) Time(subsystem string) func() {
 
 // RecordTick advances the world tick counter for TPS calculation.
 func (p *Profiler) RecordTick() {
+	if p == nil {
+		return
+	}
 	p.tickCount.Add(1)
 	p.lastTickTime.Store(time.Now().UnixNano())
 }
 
 // Reset clears all accumulated subsystem counters and timers.
 func (p *Profiler) Reset() {
+	if p == nil {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.startTime = time.Now()
 	p.tickCount.Store(0)
-	clear(p.trackers)
+	if p.trackers != nil {
+		clear(p.trackers)
+	}
 }
 
 // GenerateReport generates a comprehensive ProfilerReport.
 func (p *Profiler) GenerateReport() ProfilerReport {
+	if p == nil {
+		return ProfilerReport{
+			Timestamp: time.Now(),
+			TPS1m:     20.0,
+			TPS5m:     20.0,
+			TPS15m:    20.0,
+		}
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
-	uptime := time.Since(p.startTime)
+	startTime := p.startTime
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	uptime := time.Since(startTime)
 	ticks := p.tickCount.Load()
 	tps := 20.0
 	if uptime.Seconds() > 0 && ticks > 0 {
 		measured := float64(ticks) / uptime.Seconds()
-		if measured < 20.0 {
+		if math.IsNaN(measured) || measured < 0 {
+			tps = 0.0
+		} else if measured < 20.0 {
 			tps = math.Round(measured*100) / 100
+		} else {
+			tps = 20.0
 		}
 	}
 
@@ -195,12 +234,18 @@ func (p *Profiler) GenerateReport() ProfilerReport {
 
 // ExportJSON exports the report in JSON format.
 func (p *Profiler) ExportJSON() ([]byte, error) {
+	if p == nil {
+		return []byte("{}"), nil
+	}
 	rep := p.GenerateReport()
 	return json.MarshalIndent(rep, "", "  ")
 }
 
 // FormatText formats the profiler report as clean, human-readable terminal text.
 func (p *Profiler) FormatText() string {
+	if p == nil {
+		return "Profiler is uninitialized."
+	}
 	r := p.GenerateReport()
 	var sb strings.Builder
 

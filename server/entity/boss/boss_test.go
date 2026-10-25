@@ -1,6 +1,7 @@
 package boss_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/entity"
@@ -151,6 +152,75 @@ func TestWither_ArmorAndProjectileImmunity(t *testing.T) {
 	}
 	if _, ok := drops[0].Item().(item.NetherStar); !ok {
 		t.Fatalf("expected Nether Star drop, got %v", drops[0])
+	}
+}
+
+func TestBoss_NilAndNaNSafety(t *testing.T) {
+	// 1. BossBar nil receiver safety
+	var nilBar *boss.BossBar
+	if nilBar.Title() != "" {
+		t.Fatalf("expected empty title on nil BossBar")
+	}
+	nilBar.SetTitle("Dragon")
+	if nilBar.HealthPercentage() != 0 {
+		t.Fatalf("expected 0 health percentage on nil BossBar")
+	}
+	nilBar.SetHealthPercentage(0.5)
+	if nilBar.Colour() != 0 {
+		t.Fatalf("expected 0 colour on nil BossBar")
+	}
+	nilBar.SetColour(1)
+	if nilBar.ShowPacket() != nil || nilBar.UpdateHealthPacket() != nil || nilBar.HidePacket() != nil {
+		t.Fatalf("expected nil packets on nil BossBar")
+	}
+
+	// 2. BossBar NaN and Inf clamp
+	bar := boss.NewBossBar(1, "Test", 0, 0)
+	bar.SetHealthPercentage(float32(math.NaN()))
+	if bar.HealthPercentage() != 0 {
+		t.Fatalf("expected NaN health percentage to clamp to 0")
+	}
+	bar.SetHealthPercentage(float32(math.Inf(1)))
+	if bar.HealthPercentage() != 0 {
+		t.Fatalf("expected +Inf health percentage to clamp to 0")
+	}
+	bar.SetHealthPercentage(1.5)
+	if bar.HealthPercentage() != 1.0 {
+		t.Fatalf("expected >1.0 health percentage to clamp to 1.0")
+	}
+	bar.SetHealthPercentage(-0.5)
+	if bar.HealthPercentage() != 0.0 {
+		t.Fatalf("expected <0 health percentage to clamp to 0.0")
+	}
+
+	// 3. EnderDragon nil receiver safety
+	var nilDragon *boss.EnderDragon
+	if nilDragon.Phase() != boss.DragonPhaseCircling {
+		t.Fatalf("expected default phase Circling on nil dragon")
+	}
+	nilDragon.SetPhase(boss.DragonPhasePerching)
+	if nilDragon.ConnectedCrystal() != nil {
+		t.Fatalf("expected nil connected crystal on nil dragon")
+	}
+	nilDragon.ConnectCrystal(&mgl64.Vec3{0, 0, 0})
+	nilDragon.SeverCrystal(true)
+	if nilDragon.DeathTicks() != 0 {
+		t.Fatalf("expected 0 death ticks on nil dragon")
+	}
+	nilDragon.Tick(nil, 1)
+
+	// 4. Wither nil receiver safety
+	var nilWither *boss.Wither
+	if nilWither.InvulnerableTicks() != 0 {
+		t.Fatalf("expected 0 invulnerable ticks on nil wither")
+	}
+	nilWither.SetInvulnerableTicks(10)
+	if nilWither.WitherArmor() {
+		t.Fatalf("expected false wither armor on nil wither")
+	}
+	nilWither.Tick(nil, 1)
+	if nilWither.Metadata() == nil {
+		t.Fatalf("expected non-nil metadata map on nil wither")
 	}
 }
 

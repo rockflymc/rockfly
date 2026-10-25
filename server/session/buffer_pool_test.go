@@ -51,6 +51,46 @@ func TestBufferPool_BufferAcquireRelease(t *testing.T) {
 	ReleaseBuffer(buf2)
 }
 
+func TestBufferPool_NilAndZeroSafety(t *testing.T) {
+	var nilPool *BufferPool
+	if nilPool.Get(100) == nil || len(nilPool.Get(100)) != 100 {
+		t.Fatalf("expected fallback allocation from nil BufferPool")
+	}
+	if nilPool.Get(-10) != nil {
+		t.Fatalf("expected nil from negative capacity")
+	}
+	nilPool.Put([]byte{1, 2, 3})
+	b := nilPool.GetBuffer()
+	if b == nil {
+		t.Fatalf("expected buffer from nil pool")
+	}
+	nilPool.PutBuffer(b)
+	nilPool.PutBuffer(nil)
+
+	zeroPool := &BufferPool{}
+	buf := zeroPool.Get(64)
+	if len(buf) != 64 {
+		t.Fatalf("expected slice from zero-value pool")
+	}
+	zeroPool.Put(buf)
+	b2 := zeroPool.GetBuffer()
+	if b2 == nil {
+		t.Fatalf("expected buffer from zero-value pool")
+	}
+	zeroPool.PutBuffer(b2)
+}
+
+func BenchmarkBufferPool_SliceAcquireRelease(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		s := GlobalBufferPool.Get(1024)
+		s[0] = 0xAA
+		GlobalBufferPool.Put(s)
+	}
+}
+
 func BenchmarkBufferPool_AcquireReleaseBuffer(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()

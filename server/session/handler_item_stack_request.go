@@ -174,6 +174,9 @@ func (h *ItemStackRequestHandler) handleTransfer(from, to protocol.StackRequestS
 
 	invA, _ := s.invByID(int32(from.Container.ContainerID), tx)
 	invB, _ := s.invByID(int32(to.Container.ContainerID), tx)
+	if invA == nil || invB == nil {
+		return fmt.Errorf("invalid source or destination container (%v -> %v)", from.Container.ContainerID, to.Container.ContainerID)
+	}
 
 	ctx := event.C(inventory.Holder(c))
 	_ = call(ctx, int(from.Slot), i.Grow(int(count)-i.Count()), invA.Handler().HandleTake)
@@ -198,6 +201,9 @@ func (h *ItemStackRequestHandler) handleSwap(a *protocol.SwapStackRequestAction,
 
 	invA, _ := s.invByID(int32(a.Source.Container.ContainerID), tx)
 	invB, _ := s.invByID(int32(a.Destination.Container.ContainerID), tx)
+	if invA == nil || invB == nil {
+		return fmt.Errorf("invalid source or destination container (%v -> %v)", a.Source.Container.ContainerID, a.Destination.Container.ContainerID)
+	}
 
 	ctx := event.C(inventory.Holder(c))
 	_ = call(ctx, int(a.Source.Slot), i, invA.Handler().HandleTake)
@@ -232,6 +238,11 @@ func (h *ItemStackRequestHandler) handleDestroy(a *protocol.DestroyStackRequestA
 	if h.ignoreDestroy {
 		return nil
 	}
+	if s.antiDupe != nil {
+		if _, err := s.antiDupe.ValidateCount(a.Count); err != nil {
+			return err
+		}
+	}
 	if !c.GameMode().CreativeInventory() {
 		return fmt.Errorf("can only destroy items in gamemode creative/spectator")
 	}
@@ -250,6 +261,11 @@ func (h *ItemStackRequestHandler) handleDestroy(a *protocol.DestroyStackRequestA
 // handleDrop handles the dropping of an item by moving it outside the inventory while having the
 // inventory opened.
 func (h *ItemStackRequestHandler) handleDrop(a *protocol.DropStackRequestAction, s *Session, tx *world.Tx, c Controllable) error {
+	if s.antiDupe != nil {
+		if _, err := s.antiDupe.ValidateCount(a.Count); err != nil {
+			return err
+		}
+	}
 	if err := h.verifySlot(a.Source, s, tx); err != nil {
 		return fmt.Errorf("source slot out of sync: %w", err)
 	}
@@ -259,6 +275,9 @@ func (h *ItemStackRequestHandler) handleDrop(a *protocol.DropStackRequestAction,
 	}
 
 	inv, _ := s.invByID(int32(a.Source.Container.ContainerID), tx)
+	if inv == nil {
+		return fmt.Errorf("invalid drop source container %v", a.Source.Container.ContainerID)
+	}
 	if err := call(event.C(inventory.Holder(c)), int(a.Source.Slot), i.Grow(int(a.Count)-i.Count()), inv.Handler().HandleDrop); err != nil {
 		return err
 	}
@@ -497,15 +516,25 @@ func (h *ItemStackRequestHandler) reject(id int32, s *Session, tx *world.Tx) {
 		}},
 	})
 
-	// Revert changes that we already made for valid actions.
-	for container, slots := range h.changes {
-		for slot, info := range slots {
-			if inv, _ := s.invByID(int32(container), tx); inv != nil {
-				_ = inv.SetItem(int(slot), info.before)
-			}
-		}
+	// Revert changes that we already made for valid actions, or resync state if rejected upfront.
+	if len(h.changes) == 0 {
 		if s.antiDupe != nil {
-			s.antiDupe.ResyncContainer(s, tx, container)
+			var containerID byte = protocol.WindowIDInventory
+			if s.containerOpened.Load() {
+				containerID = byte(s.openedWindowID.Load())
+			}
+			s.antiDupe.ResyncContainer(s, tx, containerID)
+		}
+	} else {
+		for container, slots := range h.changes {
+			for slot, info := range slots {
+				if inv, _ := s.invByID(int32(container), tx); inv != nil {
+					_ = inv.SetItem(int(slot), info.before)
+				}
+			}
+			if s.antiDupe != nil {
+				s.antiDupe.ResyncContainer(s, tx, container)
+			}
 		}
 	}
 

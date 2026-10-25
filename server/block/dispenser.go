@@ -72,6 +72,9 @@ func (d Dispenser) Inventory(*world.Tx, cube.Pos) *inventory.Inventory {
 
 // AddViewer adds a viewer to the dispenser.
 func (d Dispenser) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if d.viewerMu == nil {
+		return
+	}
 	d.viewerMu.Lock()
 	defer d.viewerMu.Unlock()
 	d.viewers[v] = struct{}{}
@@ -79,6 +82,9 @@ func (d Dispenser) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
 
 // RemoveViewer removes a viewer from the dispenser.
 func (d Dispenser) RemoveViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if d.viewerMu == nil {
+		return
+	}
 	d.viewerMu.Lock()
 	defer d.viewerMu.Unlock()
 	delete(d.viewers, v)
@@ -108,6 +114,9 @@ func (d Dispenser) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *wo
 
 // NeighbourUpdateTick schedules a dispensing tick on redstone rising edges.
 func (d Dispenser) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	powered := tx.RedstonePower(pos) > 0
 	if powered && !d.Triggered {
 		tx.ScheduleBlockUpdate(pos, d, redstoneTicks(2))
@@ -119,6 +128,9 @@ func (d Dispenser) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 // RedstonePowerAction schedules dispensing on direct redstone power changes.
 func (d Dispenser) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, newPower int) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if newPower > 0 && oldPower == 0 && !d.Triggered {
 		tx.ScheduleBlockUpdate(pos, d, redstoneTicks(2))
 	} else if newPower == 0 && oldPower > 0 && d.Triggered {
@@ -129,6 +141,9 @@ func (d Dispenser) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, new
 
 // ScheduledTick executes dispensing on a redstone pulse.
 func (d Dispenser) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if tx.RedstonePower(pos) > 0 {
 		d.Triggered = true
 		tx.SetBlock(pos, d, nil)
@@ -138,7 +153,12 @@ func (d Dispenser) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // Dispense executes contextual dispensing based on the item in a randomly chosen non-empty slot.
 func (d Dispenser) Dispense(pos cube.Pos, tx *world.Tx) {
-	if d.inventory == nil {
+	if d.inventory == nil || tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
+
+	targetPos := pos.Side(d.Facing)
+	if targetPos.OutOfBounds(tx.Range()) {
 		return
 	}
 
@@ -155,7 +175,6 @@ func (d Dispenser) Dispense(pos cube.Pos, tx *world.Tx) {
 
 	chosenSlot := nonEmpty[rand.IntN(len(nonEmpty))]
 	st, _ := d.inventory.Item(chosenSlot)
-	targetPos := pos.Side(d.Facing)
 	spawnPos := targetPos.Vec3Centre()
 	directionVec := faceVec3(d.Facing)
 
@@ -219,6 +238,9 @@ func (d Dispenser) Dispense(pos cube.Pos, tx *world.Tx) {
 // BreakInfo ...
 func (d Dispenser) BreakInfo() BreakInfo {
 	return newBreakInfo(3.5, pickaxeHarvestable, pickaxeEffective, oneOf(NewDispenser())).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		if d.inventory != nil {
 			for _, i := range d.inventory.Clear() {
 				dropItem(tx, i, pos.Vec3Centre())

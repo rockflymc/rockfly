@@ -26,7 +26,7 @@ func NewNearestAttackableTargetGoal(mob Mob, holder TargetHolder, radius float64
 }
 
 func (g *NearestAttackableTargetGoal) CanUse() bool {
-	if g.mob.Dead() || g.holder == nil || g.findNearest == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil || g.findNearest == nil {
 		return false
 	}
 	// If already targeting a living enemy, no need to switch immediately
@@ -39,7 +39,7 @@ func (g *NearestAttackableTargetGoal) CanUse() bool {
 }
 
 func (g *NearestAttackableTargetGoal) CanContinueToUse() bool {
-	if g.mob.Dead() || g.holder == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil {
 		return false
 	}
 	target := g.holder.Target()
@@ -51,6 +51,9 @@ func (g *NearestAttackableTargetGoal) CanContinueToUse() bool {
 }
 
 func (g *NearestAttackableTargetGoal) Start() {
+	if g.holder == nil || g.findNearest == nil {
+		return
+	}
 	target := g.findNearest(g.radius)
 	if target != nil {
 		g.holder.SetTarget(target)
@@ -58,7 +61,9 @@ func (g *NearestAttackableTargetGoal) Start() {
 }
 
 func (g *NearestAttackableTargetGoal) Stop() {
-	g.holder.SetTarget(nil)
+	if g.holder != nil {
+		g.holder.SetTarget(nil)
+	}
 }
 
 func (g *NearestAttackableTargetGoal) Tick() {}
@@ -82,7 +87,7 @@ func NewHurtByTargetGoal(mob Mob, holder TargetHolder, lastAttacker func() Mob) 
 }
 
 func (g *HurtByTargetGoal) CanUse() bool {
-	if g.mob.Dead() || g.holder == nil || g.lastAttacker == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil || g.lastAttacker == nil {
 		return false
 	}
 	attacker := g.lastAttacker()
@@ -90,7 +95,7 @@ func (g *HurtByTargetGoal) CanUse() bool {
 }
 
 func (g *HurtByTargetGoal) CanContinueToUse() bool {
-	if g.mob.Dead() || g.holder == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil {
 		return false
 	}
 	target := g.holder.Target()
@@ -98,6 +103,9 @@ func (g *HurtByTargetGoal) CanContinueToUse() bool {
 }
 
 func (g *HurtByTargetGoal) Start() {
+	if g.holder == nil || g.lastAttacker == nil {
+		return
+	}
 	attacker := g.lastAttacker()
 	if attacker != nil {
 		g.holder.SetTarget(attacker)
@@ -105,7 +113,9 @@ func (g *HurtByTargetGoal) Start() {
 }
 
 func (g *HurtByTargetGoal) Stop() {
-	g.holder.SetTarget(nil)
+	if g.holder != nil {
+		g.holder.SetTarget(nil)
+	}
 }
 
 func (g *HurtByTargetGoal) Tick() {}

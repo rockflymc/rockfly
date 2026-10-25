@@ -17,12 +17,18 @@ func NewFallTracker() *FallTracker {
 
 // FallDistance returns the current accumulated fall distance in blocks.
 func (f *FallTracker) FallDistance() float64 {
+	if f == nil {
+		return 0
+	}
 	return math.Float64frombits(f.distance.Load())
 }
 
 // SetFallDistance directly sets the accumulated fall distance.
 func (f *FallTracker) SetFallDistance(dist float64) {
-	if dist < 0 {
+	if f == nil {
+		return
+	}
+	if math.IsNaN(dist) || math.IsInf(dist, 0) || dist < 0 {
 		dist = 0
 	}
 	f.distance.Store(math.Float64bits(dist))
@@ -31,6 +37,9 @@ func (f *FallTracker) SetFallDistance(dist float64) {
 // Accumulate adds vertical descent to the fall distance. If climbing or rising (deltaY > 0),
 // fall distance is reset to 0.
 func (f *FallTracker) Accumulate(deltaY float64) {
+	if f == nil || math.IsNaN(deltaY) || math.IsInf(deltaY, 0) {
+		return
+	}
 	if deltaY >= 0 {
 		f.distance.Store(0)
 		return
@@ -48,6 +57,9 @@ func (f *FallTracker) Accumulate(deltaY float64) {
 // Impact calculates kinetic fall damage upon landing on solid ground and resets the fall distance.
 // Vanilla formula: max(0, fallDistance - 3.0).
 func (f *FallTracker) Impact(featherFallingLevel int) float64 {
+	if f == nil {
+		return 0
+	}
 	for {
 		curBits := f.distance.Load()
 		cur := math.Float64frombits(curBits)
@@ -70,5 +82,8 @@ func (f *FallTracker) Impact(featherFallingLevel int) float64 {
 
 // Reset clears the accumulated fall distance.
 func (f *FallTracker) Reset() {
+	if f == nil {
+		return
+	}
 	f.distance.Store(0)
 }

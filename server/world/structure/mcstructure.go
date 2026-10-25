@@ -39,6 +39,9 @@ type mcStructureData struct {
 
 // FromMCStructure parses a raw Bedrock Edition .mcstructure binary buffer into a Template.
 func FromMCStructure(data []byte, reg world.BlockRegistry) (*Template, error) {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	var sData mcStructureData
 	if err := nbt.NewDecoderWithEncoding(bytes.NewBuffer(data), nbt.LittleEndian).Decode(&sData); err != nil {
 		return nil, fmt.Errorf("failed to decode mcstructure nbt: %w", err)
@@ -90,6 +93,9 @@ func FromMCStructure(data []byte, reg world.BlockRegistry) (*Template, error) {
 
 // ToMCStructure serializes a Template into canonical Bedrock Edition .mcstructure format.
 func ToMCStructure(t *Template) ([]byte, error) {
+	if t == nil {
+		return nil, fmt.Errorf("cannot serialize nil template")
+	}
 	size := t.Dimensions()
 	volume := size.X() * size.Y() * size.Z()
 

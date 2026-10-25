@@ -27,6 +27,9 @@ type CaveFeaturePlacer struct {
 
 // NewCaveFeaturePlacer initializes CaveFeaturePlacer using world.BlockRegistry.
 func NewCaveFeaturePlacer(reg world.BlockRegistry) *CaveFeaturePlacer {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &CaveFeaturePlacer{
 		air:          reg.BlockRuntimeID(block.Air{}),
 		stone:        reg.BlockRuntimeID(block.Stone{}),
@@ -45,6 +48,9 @@ func NewCaveFeaturePlacer(reg world.BlockRegistry) *CaveFeaturePlacer {
 
 // DecorateChunk generates subterranean cave features in chunk (chunkX, chunkZ).
 func (c *CaveFeaturePlacer) DecorateChunk(chk *chunk.Chunk, chunkX, chunkZ int, seed int64) {
+	if c == nil || chk == nil {
+		return
+	}
 	chunkSeed := uint64(seed) ^ (uint64(chunkX) * 0x85ebca6b) ^ (uint64(chunkZ) * 0xc2b2ae35)
 	r := rand.New(rand.NewPCG(chunkSeed, chunkSeed^0x9e3779b97f4a7c15))
 
@@ -124,6 +130,9 @@ func (c *CaveFeaturePlacer) isSolidRock(b uint32) bool {
 
 // generateGeode carves and places a concentric spherical amethyst geode into the chunk.
 func (c *CaveFeaturePlacer) generateGeode(chk *chunk.Chunk, cx, cy, cz, radius int) {
+	if c == nil || chk == nil {
+		return
+	}
 	rOuterSq := radius * radius
 	rMidSq := (radius - 1) * (radius - 1)
 	rInnerSq := (radius - 2) * (radius - 2)

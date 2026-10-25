@@ -43,7 +43,16 @@ func (c SetBlock) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		return
 	}
 
+	if !isValidVec3(c.Position) {
+		o.Errorf("Position must not contain NaN or Infinity")
+		return
+	}
+
 	pos := cube.PosFromVec3(c.Position)
+	if pos.OutOfBounds(tx.Range()) {
+		o.Errorf("Position %v is outside the world bounds [%d, %d]", pos, tx.Range().Min(), tx.Range().Max()-1)
+		return
+	}
 	mode := "replace"
 	if m, ok := c.Mode.Load(); ok {
 		mode = strings.ToLower(m)

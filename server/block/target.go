@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
 )
@@ -47,6 +48,10 @@ func (t Target) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face cube.Face) 
 
 // CalculateTargetPower computes the signal strength (1-15) based on the distance from the face center.
 func CalculateTargetPower(impactPos mgl64.Vec3, blockPos cube.Pos, face cube.Face) int {
+	if math.IsNaN(impactPos[0]) || math.IsNaN(impactPos[1]) || math.IsNaN(impactPos[2]) ||
+		math.IsInf(impactPos[0], 0) || math.IsInf(impactPos[1], 0) || math.IsInf(impactPos[2], 0) {
+		return 1
+	}
 	center := blockPos.Vec3Centre()
 	var off1, off2 float64
 	switch face.Axis() {
@@ -62,6 +67,9 @@ func CalculateTargetPower(impactPos mgl64.Vec3, blockPos cube.Pos, face cube.Fac
 	}
 
 	dist := math.Sqrt(off1*off1 + off2*off2)
+	if math.IsNaN(dist) || math.IsInf(dist, 0) {
+		return 1
+	}
 	// Bullseye within radius 0.07 yields power 15.
 	if dist <= 0.07 {
 		return 15
@@ -83,6 +91,10 @@ func (t Target) Hit(pos cube.Pos, tx *world.Tx, impactPos mgl64.Vec3, face cube.
 	targetPowerMap[pos] = power
 	targetMu.Unlock()
 
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return power
+	}
+
 	ticks := redstoneTicks(4)
 	if isArrow {
 		ticks = redstoneTicks(8)
@@ -100,7 +112,11 @@ func (t Target) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // BreakInfo ...
 func (t Target) BreakInfo() BreakInfo {
-	return newBreakInfo(0.5, alwaysHarvestable, hoeEffective, oneOf(Target{}))
+	return newBreakInfo(0.5, alwaysHarvestable, hoeEffective, oneOf(Target{})).withBreakHandler(func(pos cube.Pos, _ *world.Tx, _ item.User) {
+		targetMu.Lock()
+		delete(targetPowerMap, pos)
+		targetMu.Unlock()
+	})
 }
 
 // EncodeItem ...

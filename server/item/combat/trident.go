@@ -52,7 +52,14 @@ func (t Trident) CanRiptide(inWater bool, raining bool, skyAccess bool) bool {
 
 // RiptideImpulse calculates the physical launch velocity imparted on the thrower.
 func (t Trident) RiptideImpulse(yaw, pitch float64) mgl64.Vec3 {
-	if t.RiptideLevel <= 0 {
+	riptide := t.RiptideLevel
+	if riptide <= 0 {
+		return mgl64.Vec3{}
+	}
+	if riptide > 10 {
+		riptide = 10
+	}
+	if math.IsNaN(yaw) || math.IsInf(yaw, 0) || math.IsNaN(pitch) || math.IsInf(pitch, 0) {
 		return mgl64.Vec3{}
 	}
 
@@ -66,16 +73,20 @@ func (t Trident) RiptideImpulse(yaw, pitch float64) mgl64.Vec3 {
 		math.Cos(yawRad) * cosPitch,
 	}
 
-	power := 1.5 + 0.75*float64(t.RiptideLevel)
+	power := 1.5 + 0.75*float64(riptide)
 	return lookDir.Mul(power)
 }
 
 // LoyaltyReturnSpeed returns the velocity at which a thrown trident flies back to its thrower.
 func (t Trident) LoyaltyReturnSpeed() float64 {
-	if t.LoyaltyLevel <= 0 {
+	loyalty := t.LoyaltyLevel
+	if loyalty <= 0 {
 		return 0
 	}
-	return 0.6 * float64(t.LoyaltyLevel)
+	if loyalty > 10 {
+		loyalty = 10
+	}
+	return 0.6 * float64(loyalty)
 }
 
 // CanChannelLightning checks whether Channeling summons lightning upon impact during a thunderstorm.

@@ -82,17 +82,32 @@ func (s *MobSpawner) Caps() MobCapSettings {
 
 // InSpawnRing returns true if candidatePos is within [minRadius, maxRadius] from playerPos.
 func (s *MobSpawner) InSpawnRing(candidatePos, playerPos mgl64.Vec3) bool {
+	if s == nil {
+		return false
+	}
+	if math.IsNaN(candidatePos[0]) || math.IsNaN(candidatePos[1]) || math.IsNaN(candidatePos[2]) ||
+		math.IsNaN(playerPos[0]) || math.IsNaN(playerPos[1]) || math.IsNaN(playerPos[2]) ||
+		math.IsInf(candidatePos[0], 0) || math.IsInf(candidatePos[1], 0) || math.IsInf(candidatePos[2], 0) ||
+		math.IsInf(playerPos[0], 0) || math.IsInf(playerPos[1], 0) || math.IsInf(playerPos[2], 0) {
+		return false
+	}
 	dist := candidatePos.Sub(playerPos).Len()
 	return dist >= s.minSpawnRadius && dist <= s.maxSpawnRadius
 }
 
 // CanSpawnHostile checks 1.18+ hostile rules: block light == 0, solid floor, clear headroom.
 func (s *MobSpawner) CanSpawnHostile(tx *world.Tx, pos cube.Pos, playerDist float64) bool {
-	if playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
+	if s == nil || math.IsNaN(playerDist) || playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
 		return false
 	}
 	if tx == nil {
 		return true
+	}
+	if tx.World() != nil {
+		r := tx.World().Range()
+		if pos.Y()-1 < r.Min() || pos.Y()+1 >= r.Max() {
+			return false
+		}
 	}
 
 	// 1. Light check: BlockLight must be 0 for monsters in Caves & Cliffs 1.18+
@@ -114,11 +129,17 @@ func (s *MobSpawner) CanSpawnHostile(tx *world.Tx, pos cube.Pos, playerDist floa
 
 // CanSpawnPassive checks passive animal rules: daylight sky light >= 9, grass floor, clear headroom.
 func (s *MobSpawner) CanSpawnPassive(tx *world.Tx, pos cube.Pos, playerDist float64) bool {
-	if playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
+	if s == nil || math.IsNaN(playerDist) || playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
 		return false
 	}
 	if tx == nil {
 		return true
+	}
+	if tx.World() != nil {
+		r := tx.World().Range()
+		if pos.Y()-1 < r.Min() || pos.Y()+1 >= r.Max() {
+			return false
+		}
 	}
 
 	// 1. Sky light check: Animals require sunlight (SkyLight >= 9)
@@ -140,6 +161,16 @@ func (s *MobSpawner) CanSpawnPassive(tx *world.Tx, pos cube.Pos, playerDist floa
 
 // GenerateCandidateCoordinates samples randomized spawn positions around a center player.
 func (s *MobSpawner) GenerateCandidateCoordinates(playerPos mgl64.Vec3, count int) []cube.Pos {
+	if s == nil || count <= 0 {
+		return nil
+	}
+	if math.IsNaN(playerPos[0]) || math.IsNaN(playerPos[1]) || math.IsNaN(playerPos[2]) ||
+		math.IsInf(playerPos[0], 0) || math.IsInf(playerPos[1], 0) || math.IsInf(playerPos[2], 0) {
+		return nil
+	}
+	if count > 256 {
+		count = 256
+	}
 	candidates := make([]cube.Pos, 0, count)
 
 	for i := 0; i < count; i++ {
@@ -162,6 +193,9 @@ func (s *MobSpawner) GenerateCandidateCoordinates(playerPos mgl64.Vec3, count in
 
 // CapExceeded checks whether the current population in category exceeds per-player limits.
 func (s *MobSpawner) CapExceeded(category MobCategory, currentCount int, playerCount int) bool {
+	if s == nil {
+		return false
+	}
 	if playerCount <= 0 {
 		playerCount = 1
 	}
@@ -182,7 +216,7 @@ func (s *MobSpawner) CapExceeded(category MobCategory, currentCount int, playerC
 
 // isSolid checks if a block has solid collision bounding boxes.
 func isSolid(tx *world.Tx, b world.Block, pos cube.Pos) bool {
-	if b == nil {
+	if b == nil || tx == nil {
 		return false
 	}
 	return len(b.Model().BBox(pos, tx)) > 0

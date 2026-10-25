@@ -60,7 +60,13 @@ func NewMojangOctavePerlin(r Random, firstOctave int, amplitudes ...float64) *Oc
 		if amp == 0 {
 			continue
 		}
-		freq := math.Pow(2.0, float64(firstOctave+i))
+		exp := firstOctave + i
+		if exp < -60 {
+			exp = -60
+		} else if exp > 60 {
+			exp = 60
+		}
+		freq := math.Pow(2.0, float64(exp))
 		entries = append(entries, octaveEntry{
 			perlin:    p,
 			frequency: freq,
@@ -114,7 +120,13 @@ func (o *OctaveNoise) SampleNormalized2D(x, z float64) float64 {
 	if o.totalAmplitude == 0 {
 		return 0
 	}
-	return o.Sample2D(x, z) / o.totalAmplitude
+	val := o.Sample2D(x, z) / o.totalAmplitude
+	if val > 1.0 {
+		return 1.0
+	} else if val < -1.0 {
+		return -1.0
+	}
+	return val
 }
 
 // SampleNormalized3D samples 3D noise and divides by the total amplitude to keep output strictly within [-1.0, 1.0].
@@ -122,7 +134,13 @@ func (o *OctaveNoise) SampleNormalized3D(x, y, z float64) float64 {
 	if o.totalAmplitude == 0 {
 		return 0
 	}
-	return o.Sample3D(x, y, z) / o.totalAmplitude
+	val := o.Sample3D(x, y, z) / o.totalAmplitude
+	if val > 1.0 {
+		return 1.0
+	} else if val < -1.0 {
+		return -1.0
+	}
+	return val
 }
 
 // Octaves returns the number of active octaves.

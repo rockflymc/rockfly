@@ -402,3 +402,55 @@ func BenchmarkPiston_AdhesionNetwork(b *testing.B) {
 		}
 	}).Wait(context.Background())
 }
+
+func TestPiston_NilAndBoundarySafety(t *testing.T) {
+	piston := Piston{Facing: cube.FaceEast}
+	arm := PistonArm{Facing: cube.FaceEast}
+
+	// 1. Nil transaction safety
+	if piston.Extended(cube.Pos{0, 0, 0}, nil) {
+		t.Fatal("expected Extended with nil tx to return false")
+	}
+	if piston.Extend(cube.Pos{0, 0, 0}, nil) {
+		t.Fatal("expected Extend with nil tx to return false")
+	}
+	if piston.Retract(cube.Pos{0, 0, 0}, nil) {
+		t.Fatal("expected Retract with nil tx to return false")
+	}
+	piston.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	piston.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	arm.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+
+	solver := NewPistonSolver(nil, cube.Pos{0, 0, 0}, cube.FaceEast, false)
+	if solver.Solve() {
+		t.Fatal("expected Solve with nil tx to return false")
+	}
+
+	// 2. Honey nil distance safety
+	Honey{}.EntityLand(cube.Pos{0, 64, 0}, nil, nil, nil)
+
+	// 3. Out-of-bounds safety in real world
+	w := newTestWorld()
+	w.Do(func(tx *world.Tx) {
+		r := tx.Range()
+		outPos := cube.Pos{0, r.Max() + 10, 0}
+		if piston.Extend(outPos, tx) {
+			t.Fatal("expected Extend out of bounds to return false")
+		}
+		if piston.Retract(outPos, tx) {
+			t.Fatal("expected Retract out of bounds to return false")
+		}
+		if piston.Extended(outPos, tx) {
+			t.Fatal("expected Extended out of bounds to return false")
+		}
+
+		// Container immobility check
+		chestPos := cube.Pos{1, 64, 0}
+		tx.SetBlock(cube.Pos{0, 64, 0}, Piston{Facing: cube.FaceEast}, nil)
+		tx.SetBlock(chestPos, NewChest(), nil)
+		p := Piston{Facing: cube.FaceEast}
+		if p.Extend(cube.Pos{0, 64, 0}, tx) {
+			t.Fatal("expected piston extend into container chest to be blocked")
+		}
+	}).Wait(context.Background())
+}

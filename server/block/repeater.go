@@ -55,6 +55,9 @@ func (r Repeater) BreakInfo() BreakInfo {
 
 // UseOnBlock places the repeater on top of a solid surface facing away from the player.
 func (r Repeater) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.Tx, user item.User, ctx *item.UseContext) bool {
+	if tx == nil {
+		return false
+	}
 	pos, face, used := firstReplaceable(tx, pos, face, r)
 	if !used || face != cube.FaceUp {
 		return false
@@ -62,7 +65,9 @@ func (r Repeater) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *wor
 	if !repeaterSupported(tx, pos) {
 		return false
 	}
-	r.Facing = user.Rotation().Direction().Opposite()
+	if user != nil {
+		r.Facing = user.Rotation().Direction().Opposite()
+	}
 	if r.Delay < 1 || r.Delay > 4 {
 		r.Delay = 1
 	}
@@ -80,7 +85,14 @@ func (r Repeater) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *wor
 
 // Activate right-clicks cycle the repeater delay: 1 -> 2 -> 3 -> 4 -> 1.
 func (r Repeater) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.User, _ *item.UseContext) bool {
-	r.Delay = (r.Delay % 4) + 1
+	if tx == nil {
+		return false
+	}
+	delay := r.Delay
+	if delay < 1 || delay > 4 {
+		delay = 1
+	}
+	r.Delay = (delay % 4) + 1
 	tx.SetBlock(pos, r, nil)
 	tx.PlaySound(pos.Vec3Centre(), sound.Click{})
 	return true
@@ -88,6 +100,9 @@ func (r Repeater) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.User,
 
 // NeighbourUpdateTick handles breaking when unsupported and schedules state toggles when input changes.
 func (r Repeater) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil {
+		return
+	}
 	if !repeaterSupported(tx, pos) {
 		breakBlock(r, pos, tx)
 		return
@@ -95,9 +110,13 @@ func (r Repeater) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if r.SideLocked(pos, tx) {
 		return
 	}
+	delay := r.Delay
+	if delay < 1 || delay > 4 {
+		delay = 1
+	}
 	shouldPower := r.shouldBePowered(pos, tx)
 	if shouldPower != r.Powered {
-		tx.ScheduleBlockUpdate(pos, r, redstoneTicks(r.Delay))
+		tx.ScheduleBlockUpdate(pos, r, redstoneTicks(delay))
 	}
 }
 
@@ -123,12 +142,18 @@ func (r Repeater) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // shouldBePowered checks if the block behind the repeater is providing redstone power.
 func (r Repeater) shouldBePowered(pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	rearFace := r.Facing.Opposite().Face()
 	return tx.RedstonePowerFrom(pos, rearFace) > 0
 }
 
 // SideLocked checks if an adjacent powered repeater or comparator is facing into this repeater's side.
 func (r Repeater) SideLocked(pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	leftFace := r.Facing.RotateLeft().Face()
 	rightFace := r.Facing.RotateRight().Face()
 
@@ -138,7 +163,7 @@ func (r Repeater) SideLocked(pos cube.Pos, tx *world.Tx) bool {
 
 // isSideLocking reports whether the block at sidePos is a powered repeater or active comparator pointing into pos.
 func (Repeater) isSideLocking(sidePos cube.Pos, tx *world.Tx, towardsThis cube.Face) bool {
-	if sidePos.OutOfBounds(tx.Range()) {
+	if tx == nil || sidePos.OutOfBounds(tx.Range()) {
 		return false
 	}
 	b := tx.Block(sidePos)
@@ -204,11 +229,18 @@ func allRepeaters() (repeaters []world.Block) {
 
 // repeaterSupported reports whether the support block beneath pos can hold a repeater.
 func repeaterSupported(tx *world.Tx, pos cube.Pos) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	below := pos.Side(cube.FaceDown)
 	if below.OutOfBounds(tx.Range()) {
 		return false
 	}
-	return tx.Block(below).Model().FaceSolid(below, cube.FaceUp, tx)
+	b := tx.Block(below)
+	if b == nil {
+		return false
+	}
+	return b.Model().FaceSolid(below, cube.FaceUp, tx)
 }
 
 // diodeModel provides the flat 2-pixel slab model for repeaters and comparators.

@@ -38,6 +38,11 @@ func (c Summon) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		pos = p
 	}
 
+	if !isValidVec3(pos) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	opts := world.EntitySpawnOpts{Position: pos}
 	entityName := strings.ToLower(strings.TrimSpace(c.Entity))
 	entityName = strings.TrimPrefix(entityName, "minecraft:")

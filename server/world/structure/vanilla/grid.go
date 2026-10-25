@@ -69,6 +69,12 @@ func IsStructureChunk(seed int64, chunkPos world.ChunkPos, t Type) bool {
 // If isBiomeValid is non-nil, it checks whether candidate position resides in an acceptable biome.
 // Returns the world block position and true if found, or (Pos{}, false) if not found within maxChunkRadius.
 func Locate(seed int64, origin cube.Pos, t Type, maxChunkRadius int, isBiomeValid func(pos cube.Pos) bool) (cube.Pos, bool) {
+	if maxChunkRadius <= 0 {
+		maxChunkRadius = 64
+	}
+	if maxChunkRadius > 1024 {
+		maxChunkRadius = 1024 // Cap search radius to prevent excessive search times
+	}
 	cfg, ok := DefaultPlacements[t]
 	if !ok {
 		return cube.Pos{}, false

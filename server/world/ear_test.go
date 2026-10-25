@@ -153,6 +153,32 @@ func TestEARTracker_NoPlayers(t *testing.T) {
 	}
 }
 
+func TestEARTracker_NilAndZeroSafety(t *testing.T) {
+	// 1. Nil EARTracker
+	var nilEar *EARTracker
+	if !nilEar.Config().Enabled {
+		t.Fatal("expected default config on nil EARTracker")
+	}
+	shouldTick, inact := nilEar.ShouldTick(nil, nil, nil, 1)
+	if !shouldTick || inact {
+		t.Fatalf("expected true, false on nil EARTracker ShouldTick")
+	}
+
+	// 2. Nil handle safety
+	ear := NewEARTracker(DefaultEARConfig())
+	shouldTick, inact = ear.ShouldTick(nil, nil, nil, 1)
+	if !shouldTick || inact {
+		t.Fatalf("expected true, false on nil handle ShouldTick")
+	}
+
+	// 3. Zero-valued EARTracker
+	var zeroEar EARTracker
+	shouldTick, inact = zeroEar.ShouldTick(nil, nil, nil, 1)
+	if !shouldTick || inact {
+		t.Fatalf("expected true, false on zero EARTracker ShouldTick")
+	}
+}
+
 func BenchmarkEARTracker_ShouldTick(b *testing.B) {
 	ear := NewEARTracker(DefaultEARConfig())
 	playerPos := []mgl64.Vec3{

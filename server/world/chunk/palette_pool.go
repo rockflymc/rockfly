@@ -7,6 +7,9 @@ import (
 // StandardPaletteCapacity is the default capacity for sub-chunk palette indices (4096 blocks).
 const StandardPaletteCapacity = 4096
 
+type paletteIndices = [StandardPaletteCapacity]uint32
+type paletteBytes = [StandardPaletteCapacity * 4]byte
+
 // PalettePool provides memory arenas for palette indices and temporary runtime ID slices,
 // eliminating repeated slice allocations during sub-chunk encoding and decoding.
 type PalettePool struct {
@@ -22,14 +25,12 @@ func NewPalettePool() *PalettePool {
 	return &PalettePool{
 		indicesPool: sync.Pool{
 			New: func() any {
-				s := make([]uint32, StandardPaletteCapacity)
-				return &s
+				return new(paletteIndices)
 			},
 		},
 		bytePool: sync.Pool{
 			New: func() any {
-				b := make([]byte, StandardPaletteCapacity*4)
-				return &b
+				return new(paletteBytes)
 			},
 		},
 	}
@@ -37,39 +38,69 @@ func NewPalettePool() *PalettePool {
 
 // GetIndices acquires a []uint32 slice of length size (capped to capacity) from the pool.
 func (p *PalettePool) GetIndices(size int) []uint32 {
+	if p == nil {
+		if size <= 0 {
+			return nil
+		}
+		return make([]uint32, size)
+	}
+	if size <= 0 {
+		return nil
+	}
 	if size <= StandardPaletteCapacity {
-		ptr := p.indicesPool.Get().(*[]uint32)
-		slice := *ptr
-		clear(slice[:size])
-		return slice[:size]
+		ptr, ok := p.indicesPool.Get().(*paletteIndices)
+		if !ok || ptr == nil {
+			ptr = new(paletteIndices)
+		}
+		slice := ptr[:size]
+		clear(slice)
+		return slice
 	}
 	return make([]uint32, size)
 }
 
 // PutIndices returns a borrowed []uint32 slice to the pool.
 func (p *PalettePool) PutIndices(indices []uint32) {
+	if p == nil {
+		return
+	}
 	if cap(indices) >= StandardPaletteCapacity {
-		indices = indices[:StandardPaletteCapacity]
-		p.indicesPool.Put(&indices)
+		ptr := (*paletteIndices)(indices[:StandardPaletteCapacity])
+		p.indicesPool.Put(ptr)
 	}
 }
 
 // GetBytes acquires a []byte slice from the palette pool.
 func (p *PalettePool) GetBytes(size int) []byte {
+	if p == nil {
+		if size <= 0 {
+			return nil
+		}
+		return make([]byte, size)
+	}
+	if size <= 0 {
+		return nil
+	}
 	if size <= StandardPaletteCapacity*4 {
-		ptr := p.bytePool.Get().(*[]byte)
-		slice := *ptr
-		clear(slice[:size])
-		return slice[:size]
+		ptr, ok := p.bytePool.Get().(*paletteBytes)
+		if !ok || ptr == nil {
+			ptr = new(paletteBytes)
+		}
+		slice := ptr[:size]
+		clear(slice)
+		return slice
 	}
 	return make([]byte, size)
 }
 
 // PutBytes returns a borrowed []byte slice to the palette pool.
 func (p *PalettePool) PutBytes(b []byte) {
+	if p == nil {
+		return
+	}
 	if cap(b) >= StandardPaletteCapacity*4 {
-		b = b[:StandardPaletteCapacity*4]
-		p.bytePool.Put(&b)
+		ptr := (*paletteBytes)(b[:StandardPaletteCapacity*4])
+		p.bytePool.Put(ptr)
 	}
 }
 

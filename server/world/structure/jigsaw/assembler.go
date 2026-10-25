@@ -21,6 +21,9 @@ func NewAssembler() *Assembler {
 
 // RegisterPool registers a structure pool by name.
 func (a *Assembler) RegisterPool(p *Pool) {
+	if a == nil || p == nil {
+		return
+	}
 	a.pools[p.Name] = p
 }
 
@@ -53,13 +56,16 @@ func RotateFace(f cube.Face, rot structure.Rotation) cube.Face {
 
 // Assemble builds a multi-piece structure graph starting from startPool at origin.
 func (a *Assembler) Assemble(startPool string, origin cube.Pos, maxDepth int, seed int64) []*PlacedPiece {
+	if a == nil || a.pools == nil {
+		return nil
+	}
 	pool, ok := a.pools[startPool]
 	if !ok || len(pool.Pieces) == 0 {
 		return nil
 	}
 
 	startPiece := pool.Select(int(seed))
-	if startPiece == nil {
+	if startPiece == nil || startPiece.Template == nil {
 		return nil
 	}
 
@@ -89,8 +95,14 @@ func (a *Assembler) Assemble(startPool string, origin cube.Pos, maxDepth int, se
 		structure.Rotation270,
 	}
 
+	const maxPlaced = 128
+	const maxQueue = 512
+
 	counter := 0
 	for len(queue) > 0 {
+		if len(placed) >= maxPlaced {
+			break
+		}
 		conn := queue[0]
 		queue = queue[1:]
 
@@ -109,7 +121,7 @@ func (a *Assembler) Assemble(startPool string, origin cube.Pos, maxDepth int, se
 
 		counter++
 		candPiece := targetPool.Select(int(seed) + counter*31 + conn.depth*17)
-		if candPiece == nil {
+		if candPiece == nil || candPiece.Template == nil {
 			continue
 		}
 
@@ -161,15 +173,17 @@ func (a *Assembler) Assemble(startPool string, origin cube.Pos, maxDepth int, se
 					success = true
 
 					// Enqueue open jigsaws on the new piece (excluding the one just connected)
-					for otherIdx, otherJ := range candPiece.Jigsaws {
-						if otherIdx == childJIdx {
-							continue
+					if len(queue) < maxQueue {
+						for otherIdx, otherJ := range candPiece.Jigsaws {
+							if otherIdx == childJIdx {
+								continue
+							}
+							queue = append(queue, openConnection{
+								parentPiece: newPlaced,
+								jigsaw:      otherJ,
+								depth:       conn.depth + 1,
+							})
 						}
-						queue = append(queue, openConnection{
-							parentPiece: newPlaced,
-							jigsaw:      otherJ,
-							depth:       conn.depth + 1,
-						})
 					}
 					break
 				}
@@ -182,7 +196,13 @@ func (a *Assembler) Assemble(startPool string, origin cube.Pos, maxDepth int, se
 
 // Build places all assembled pieces into a world transaction and replaces jigsaws with FinalBlock.
 func (a *Assembler) Build(tx *world.Tx, pieces []*PlacedPiece) {
+	if a == nil || tx == nil {
+		return
+	}
 	for _, p := range pieces {
+		if p == nil || p.Piece == nil || p.Piece.Template == nil {
+			continue
+		}
 		p.Piece.Template.Build(tx, p.Origin, p.Rotation, structure.MirrorNone)
 		for _, j := range p.Piece.Jigsaws {
 			if j.FinalBlock != nil {
@@ -195,6 +215,12 @@ func (a *Assembler) Build(tx *world.Tx, pieces []*PlacedPiece) {
 
 // BuildChunk populates pieces overlapping the specified chunk column for zero-allocation generation.
 func (a *Assembler) BuildChunk(c *chunk.Chunk, chunkPos world.ChunkPos, pieces []*PlacedPiece, reg world.BlockRegistry) {
+	if a == nil || c == nil {
+		return
+	}
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	minChunkX := int(chunkPos.X()) << 4
 	maxChunkX := minChunkX + 15
 	minChunkZ := int(chunkPos.Z()) << 4
@@ -206,7 +232,7 @@ func (a *Assembler) BuildChunk(c *chunk.Chunk, chunkPos world.ChunkPos, pieces [
 	}
 
 	for _, p := range pieces {
-		if !chunkBox.Intersects(p.Box) {
+		if p == nil || p.Piece == nil || p.Piece.Template == nil || !chunkBox.Intersects(p.Box) {
 			continue
 		}
 		p.Piece.Template.BuildChunk(c, chunkPos, p.Origin, p.Rotation, structure.MirrorNone, reg)

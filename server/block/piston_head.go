@@ -24,7 +24,14 @@ type PistonArm struct {
 
 // NeighbourUpdateTick removes the piston arm if its base piston is missing or no longer pointing at it.
 func (a PistonArm) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	basePos := pos.Side(a.Facing.Opposite())
+	if basePos.OutOfBounds(tx.Range()) {
+		tx.SetBlock(pos, Air{}, nil)
+		return
+	}
 	if p, ok := tx.Block(basePos).(Piston); !ok || p.Facing != a.Facing {
 		tx.SetBlock(pos, Air{}, nil)
 	}
@@ -33,7 +40,13 @@ func (a PistonArm) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 // BreakInfo ...
 func (a PistonArm) BreakInfo() BreakInfo {
 	return newBreakInfo(0.5, alwaysHarvestable, nothingEffective, nil).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		basePos := pos.Side(a.Facing.Opposite())
+		if basePos.OutOfBounds(tx.Range()) {
+			return
+		}
 		if p, ok := tx.Block(basePos).(Piston); ok && p.Facing == a.Facing {
 			tx.SetBlock(basePos, Air{}, nil)
 			if create := tx.World().EntityRegistry().Config().Item; create != nil {

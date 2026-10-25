@@ -36,6 +36,11 @@ func (c SpawnPointSelf) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		pos = customPos
 	}
 
+	if !isValidVec3(pos) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	blockPos := cube.PosFromVec3(pos)
 	tx.World().SetPlayerSpawn(p.UUID(), blockPos)
 	o.Printf("Set %s's spawn point to %d, %d, %d", p.Name(), blockPos[0], blockPos[1], blockPos[2])
@@ -58,6 +63,9 @@ func (c SpawnPointTarget) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 			pos := p.Position()
 			if customPos, ok := c.Position.Load(); ok {
 				pos = customPos
+			}
+			if !isValidVec3(pos) {
+				continue
 			}
 			blockPos := cube.PosFromVec3(pos)
 			tx.World().SetPlayerSpawn(p.UUID(), blockPos)

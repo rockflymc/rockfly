@@ -1,6 +1,7 @@
 package block
 
 import (
+	"math"
 	"math/rand/v2"
 	"time"
 
@@ -67,11 +68,23 @@ func (BubbleColumn) LiquidRemoveBlock(cube.Pos, *world.Tx, world.Block) {}
 
 // EntityInside applies liquid velocity dynamics to entities inside the bubble column.
 func (b BubbleColumn) EntityInside(pos cube.Pos, _ *world.Tx, e world.Entity) {
+	if e == nil {
+		return
+	}
 	if v, ok := e.(interface {
 		Velocity() mgl64.Vec3
 		SetVelocity(mgl64.Vec3)
 	}); ok {
 		vel := v.Velocity()
+		if math.IsNaN(vel[0]) || math.IsInf(vel[0], 0) {
+			vel[0] = 0
+		}
+		if math.IsNaN(vel[1]) || math.IsInf(vel[1], 0) {
+			vel[1] = 0
+		}
+		if math.IsNaN(vel[2]) || math.IsInf(vel[2], 0) {
+			vel[2] = 0
+		}
 		if b.DragDown {
 			vel[1] = max(-0.7, vel[1]-0.15)
 		} else {
@@ -90,7 +103,14 @@ func (b BubbleColumn) EntityInside(pos cube.Pos, _ *world.Tx, e world.Entity) {
 
 // NeighbourUpdateTick validates the column base and propagates bubble columns upward.
 func (b BubbleColumn) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	belowPos := pos.Side(cube.FaceDown)
+	if belowPos.OutOfBounds(tx.Range()) {
+		tx.SetBlock(pos, Water{Depth: 8, Still: true}, nil)
+		return
+	}
 	below := tx.Block(belowPos)
 
 	// Validate base block:
@@ -117,21 +137,32 @@ func (b BubbleColumn) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 	// Propagate upward into any still water block.
 	abovePos := pos.Side(cube.FaceUp)
-	above := tx.Block(abovePos)
-	if w, ok := above.(Water); ok && w.Depth == 8 && w.Still {
-		tx.SetBlock(abovePos, BubbleColumn{DragDown: b.DragDown}, nil)
-		tx.ScheduleBlockUpdate(abovePos, BubbleColumn{DragDown: b.DragDown}, redstoneTicks(1))
+	if !abovePos.OutOfBounds(tx.Range()) {
+		above := tx.Block(abovePos)
+		if w, ok := above.(Water); ok && w.Depth == 8 && w.Still {
+			tx.SetBlock(abovePos, BubbleColumn{DragDown: b.DragDown}, nil)
+			tx.ScheduleBlockUpdate(abovePos, BubbleColumn{DragDown: b.DragDown}, redstoneTicks(1))
+		}
 	}
 }
 
 // ScheduledTick ensures propagation along the column continues.
 func (b BubbleColumn) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	b.NeighbourUpdateTick(pos, pos, tx)
 }
 
 // CheckCreateBubbleColumn checks if water at pos should transform into a bubble column over soul sand or magma.
 func CheckCreateBubbleColumn(pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	belowPos := pos.Side(cube.FaceDown)
+	if belowPos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	below := tx.Block(belowPos)
 
 	if _, ok := below.(SoulSand); ok {

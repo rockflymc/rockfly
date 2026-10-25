@@ -82,6 +82,61 @@ func TestDynamicCompiler_CustomBlockRegistration(t *testing.T) {
 	}
 }
 
+func TestDynamicCompiler_DeterminismAndSafety(t *testing.T) {
+	// 1. Deterministic compilation
+	c1 := NewDynamicCompiler()
+	c1.AddText("b.txt", "content b")
+	c1.AddText("a.txt", "content a")
+	pack1, hash1, err := c1.Compile("Test", "Desc")
+	if err != nil {
+		t.Fatalf("c1 compile failed: %v", err)
+	}
+
+	c2 := NewDynamicCompiler()
+	c2.AddText("a.txt", "content a")
+	c2.AddText("b.txt", "content b")
+	pack2, hash2, err := c2.Compile("Test", "Desc")
+	if err != nil {
+		t.Fatalf("c2 compile failed: %v", err)
+	}
+
+	if hash1 != hash2 {
+		t.Fatalf("expected deterministic SHA-256 hash across identical packs, got %x vs %x", hash1, hash2)
+	}
+	if pack1.UUID() != pack2.UUID() {
+		t.Fatalf("expected deterministic pack UUID, got %v vs %v", pack1.UUID(), pack2.UUID())
+	}
+
+	// 2. Nil receiver safety
+	var nilCompiler *DynamicCompiler
+	nilCompiler.AddFile("test", []byte{1})
+	nilCompiler.AddText("test", "txt")
+	if err := nilCompiler.AddImage("test", nil); err == nil {
+		t.Fatalf("expected error from nil compiler AddImage")
+	}
+	nilCompiler.AddLang("k", "v")
+	if nilCompiler.AssetCount() != 0 {
+		t.Fatalf("expected 0 assets from nil compiler")
+	}
+	if _, _, err := nilCompiler.Compile("", ""); err == nil {
+		t.Fatalf("expected error from nil compiler Compile")
+	}
+
+	// 3. Zero-value struct safety
+	zeroCompiler := &DynamicCompiler{}
+	zeroCompiler.AddText("test.txt", "data")
+	if zeroCompiler.AssetCount() != 1 {
+		t.Fatalf("expected 1 asset in zero-value compiler")
+	}
+
+	// 4. Path traversal sanitization
+	zeroCompiler.AddText("../../secrets.txt", "leak")
+	cleaned := cleanPath("../../secrets.txt")
+	if cleaned != "secrets.txt" {
+		t.Fatalf("expected path traversal to be stripped, got %s", cleaned)
+	}
+}
+
 func BenchmarkDynamicCompiler_Compile(b *testing.B) {
 	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
 

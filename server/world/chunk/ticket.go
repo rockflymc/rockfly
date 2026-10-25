@@ -83,6 +83,9 @@ func NewTicketManager(defaultLingerTicks int64) *TicketManager {
 
 // OnStateChange registers a callback to be invoked whenever a chunk transitions state.
 func (m *TicketManager) OnStateChange(handler StateChangeHandler) {
+	if m == nil || handler == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.handlers = append(m.handlers, handler)
@@ -90,6 +93,18 @@ func (m *TicketManager) OnStateChange(handler StateChangeHandler) {
 
 // AddTicket adds a ticket to the given chunk position and propagates its level outward.
 func (m *TicketManager) AddTicket(origin Pos, ticket Ticket) {
+	if m == nil {
+		return
+	}
+	if ticket.Radius < 0 {
+		ticket.Radius = 0
+	} else if ticket.Radius > 64 {
+		ticket.Radius = 64
+	}
+	if ticket.Level < 1 {
+		ticket.Level = LevelEntityTicking
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -117,6 +132,9 @@ func (m *TicketManager) AddTicket(origin Pos, ticket Ticket) {
 // RemoveTicket removes any tickets matching the given type and owner from origin.
 // Returns true if at least one ticket was removed.
 func (m *TicketManager) RemoveTicket(origin Pos, ticketType TicketType, owner any, currentTick int64) bool {
+	if m == nil {
+		return false
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -143,6 +161,12 @@ func (m *TicketManager) RemoveTicket(origin Pos, ticketType TicketType, owner an
 		return false
 	}
 
+	if removedRadius < 0 {
+		removedRadius = 0
+	} else if removedRadius > 64 {
+		removedRadius = 64
+	}
+
 	if len(filtered) == 0 {
 		delete(m.tickets, origin)
 	} else {
@@ -163,6 +187,9 @@ func (m *TicketManager) RemoveTicket(origin Pos, ticketType TicketType, owner an
 
 // Level returns the current effective ticket level of the chunk at pos.
 func (m *TicketManager) Level(pos Pos) int {
+	if m == nil {
+		return LevelMax
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -175,6 +202,9 @@ func (m *TicketManager) Level(pos Pos) int {
 
 // State returns the current ChunkState of the chunk at pos.
 func (m *TicketManager) State(pos Pos) ChunkState {
+	if m == nil {
+		return StateInaccessible
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -187,6 +217,9 @@ func (m *TicketManager) State(pos Pos) ChunkState {
 
 // HasLinger returns whether pos currently has an active linger timer.
 func (m *TicketManager) HasLinger(pos Pos, currentTick int64) bool {
+	if m == nil {
+		return false
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -196,6 +229,9 @@ func (m *TicketManager) HasLinger(pos Pos, currentTick int64) bool {
 
 // CanUnload returns whether pos is safe to unload (inaccessible and not lingering).
 func (m *TicketManager) CanUnload(pos Pos, currentTick int64) bool {
+	if m == nil {
+		return true
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -214,6 +250,9 @@ func (m *TicketManager) CanUnload(pos Pos, currentTick int64) bool {
 
 // Reap processes expired tickets and returns chunks that have finished lingering and are ready for unload.
 func (m *TicketManager) Reap(currentTick int64) (expiredCount int, evictable []Pos) {
+	if m == nil {
+		return 0, nil
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -297,6 +336,9 @@ func (m *TicketManager) recomputeChunkLevel(pos Pos, currentTick int64) {
 	for origin, tickets := range m.tickets {
 		dist := int(pos.Distance(origin))
 		for _, t := range tickets {
+			if t.Expired(currentTick) {
+				continue
+			}
 			if dist <= t.Radius {
 				lvl := t.Level + dist
 				if lvl < bestLevel {

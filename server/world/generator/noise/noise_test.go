@@ -120,6 +120,31 @@ func TestBatchSamplingParity(t *testing.T) {
 	}
 }
 
+func TestBatch4WideParity(t *testing.T) {
+	oct := noise.NewOctavePerlinFromSeed(999, 4, 2.0, 0.5)
+
+	var xs, ys, zs, res2D, res3D [4]float64
+	for i := range 4 {
+		xs[i] = float64(i) * 12.5
+		ys[i] = float64(i) * 8.2
+		zs[i] = float64(i) * 15.7
+	}
+
+	oct.SampleBatch4Wide2D(&xs, &zs, &res2D)
+	oct.SampleBatch4Wide3D(&xs, &ys, &zs, &res3D)
+
+	for i := range 4 {
+		exp2D := oct.Sample2D(xs[i], zs[i])
+		if res2D[i] != exp2D {
+			t.Fatalf("4-wide 2D mismatch at %d: got %v, expected %v", i, res2D[i], exp2D)
+		}
+		exp3D := oct.Sample3D(xs[i], ys[i], zs[i])
+		if res3D[i] != exp3D {
+			t.Fatalf("4-wide 3D mismatch at %d: got %v, expected %v", i, res3D[i], exp3D)
+		}
+	}
+}
+
 func BenchmarkOctaveSample2D(b *testing.B) {
 	oct := noise.NewOctavePerlinFromSeed(42, 4, 2.0, 0.5)
 	b.ResetTimer()

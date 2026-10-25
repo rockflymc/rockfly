@@ -39,7 +39,11 @@ func (c Give) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	}
 
 	amount := 1
-	if a, ok := c.Amount.Load(); ok && a > 0 {
+	if a, ok := c.Amount.Load(); ok {
+		if a <= 0 || a > 64000 {
+			o.Errorf("Amount must be between 1 and 64000 (got %d)", a)
+			return
+		}
 		amount = a
 	}
 
