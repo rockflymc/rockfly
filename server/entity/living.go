@@ -328,6 +328,11 @@ func (l *LivingEntity) Heal(health float64, _ world.HealingSource) float64 {
 	return l.health.AddHealth(health)
 }
 
+// ResetImmunity clears any active damage immunity window.
+func (l *LivingEntity) ResetImmunity() {
+	l.immunity.Reset()
+}
+
 // Hurt inflicts damage according to Bedrock damage immunity frames, armor mitigation,
 // potion resistance, and absorption buffers.
 func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bool) {
