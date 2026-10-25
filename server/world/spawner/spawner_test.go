@@ -1,6 +1,7 @@
 package spawner_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -139,6 +140,41 @@ func TestPPMS_DespawnRules(t *testing.T) {
 	despawn, _ = engine.ShouldDespawn(mgl64.Vec3{50, 64, 0}, players, 700, 0.5)
 	if despawn {
 		t.Fatalf("expected entity at 50 blocks with high roll to not despawn")
+	}
+}
+
+func TestSpawner_NilAndNaNSafety(t *testing.T) {
+	var nilEngine *spawner.PPMSEngine
+	if nilEngine.EvaluateBudgets(nil, nil) != nil {
+		t.Fatalf("expected nil from nil PPMSEngine.EvaluateBudgets")
+	}
+	if nilEngine.CanSpawnForPlayer(uuid.New(), spawner.CategoryHostile, nil) {
+		t.Fatalf("expected false from nil PPMSEngine.CanSpawnForPlayer")
+	}
+	d, inst := nilEngine.ShouldDespawn(mgl64.Vec3{0, 0, 0}, nil, 100, 0)
+	if d || inst {
+		t.Fatalf("expected false, false from nil PPMSEngine.ShouldDespawn")
+	}
+	if nilEngine.InPlayerSpawnRing(cube.Pos{0, 0, 0}, mgl64.Vec3{0, 0, 0}) {
+		t.Fatalf("expected false from nil PPMSEngine.InPlayerSpawnRing")
+	}
+
+	var nilSpawner *spawner.MobSpawner
+	if nilSpawner.InSpawnRing(mgl64.Vec3{0, 0, 0}, mgl64.Vec3{0, 0, 0}) {
+		t.Fatalf("expected false from nil MobSpawner.InSpawnRing")
+	}
+	if nilSpawner.CanSpawnHostile(nil, cube.Pos{0, 0, 0}, 30.0) {
+		t.Fatalf("expected false from nil MobSpawner.CanSpawnHostile")
+	}
+	if nilSpawner.CapExceeded(spawner.CategoryHostile, 10, 1) {
+		t.Fatalf("expected false from nil MobSpawner.CapExceeded")
+	}
+
+	engine := spawner.NewPPMSEngine(spawner.DefaultPPMSConfig())
+	// Despawn NaN coords immediately
+	d, inst = engine.ShouldDespawn(mgl64.Vec3{math.NaN(), 0, 0}, nil, 10, 0)
+	if !d || !inst {
+		t.Fatalf("expected NaN position to instantly despawn")
 	}
 }
 
