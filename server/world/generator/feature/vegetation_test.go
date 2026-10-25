@@ -172,6 +172,17 @@ func TestCaveFeaturePlacer_Geode(t *testing.T) {
 	}
 }
 
+func TestVegetationNilSafety(t *testing.T) {
+	var nilVeg *VegetationPlacer
+	nilVeg.DecorateChunk(nil, 0, 0, 0)
+	if nilVeg.PlaceTree(nil, 0, 0, 0, TreeOak, nil) {
+		t.Fatal("expected false from nil tree placer")
+	}
+
+	var nilCave *CaveFeaturePlacer
+	nilCave.DecorateChunk(nil, 0, 0, 0)
+}
+
 func BenchmarkVegetationPlacer_DecorateChunk(b *testing.B) {
 	reg := world.DefaultBlockRegistry
 	placer := NewVegetationPlacer(reg)
