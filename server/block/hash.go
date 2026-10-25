@@ -105,6 +105,7 @@ const (
 	hashGravel
 	hashGrindstone
 	hashHayBale
+	hashHoney
 	hashHoneycomb
 	hashHopper
 	hashIce
@@ -155,6 +156,8 @@ const (
 	hashPackedIce
 	hashPackedMud
 	hashPinkPetals
+	hashPiston
+	hashPistonArm
 	hashPlanks
 	hashPodzol
 	hashPolishedBlackstoneBrick
@@ -655,6 +658,10 @@ func (h HayBale) Hash() (uint64, uint64) {
 	return hashHayBale, uint64(h.Axis)
 }
 
+func (Honey) Hash() (uint64, uint64) {
+	return hashHoney, 0
+}
+
 func (Honeycomb) Hash() (uint64, uint64) {
 	return hashHoneycomb, 0
 }
@@ -853,6 +860,14 @@ func (PackedMud) Hash() (uint64, uint64) {
 
 func (p PinkPetals) Hash() (uint64, uint64) {
 	return hashPinkPetals, uint64(p.AdditionalCount) | uint64(p.Facing)<<8
+}
+
+func (p Piston) Hash() (uint64, uint64) {
+	return hashPiston, uint64(p.Facing) | uint64(boolByte(p.Sticky))<<3
+}
+
+func (a PistonArm) Hash() (uint64, uint64) {
+	return hashPistonArm, uint64(a.Facing) | uint64(boolByte(a.Sticky))<<3
 }
 
 func (p Planks) Hash() (uint64, uint64) {
