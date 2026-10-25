@@ -35,7 +35,11 @@ func (c Enchant) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	}
 
 	lvl := 1
-	if l, ok := c.Level.Load(); ok && l > 0 {
+	if l, ok := c.Level.Load(); ok {
+		if l <= 0 || l > 255 {
+			o.Errorf("Enchantment level must be between 1 and 255 (got %d)", l)
+			return
+		}
 		lvl = l
 	}
 

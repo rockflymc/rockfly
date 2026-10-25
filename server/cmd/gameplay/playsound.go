@@ -39,6 +39,11 @@ func (c PlaySoundCmd) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		pos = targets[0].Position()
 	}
 
+	if !isValidVec3(pos) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	s, ok := parseSound(c.Sound)
 	if !ok {
 		o.Errorf("Unknown sound '%s'", c.Sound)

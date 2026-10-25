@@ -26,6 +26,10 @@ func (c TeleportPos) Allow(src cmd.Source) bool {
 }
 
 func (c TeleportPos) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
+	if !isValidVec3(c.Destination) {
+		o.Errorf("Destination coordinates must not contain NaN or Infinity.")
+		return
+	}
 	p, ok := src.(*player.Player)
 	if !ok {
 		o.Errorf("You must specify a target player when executing from console.")
@@ -50,11 +54,15 @@ func (c TeleportTarget) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		o.Errorf("You must specify a target player when executing from console.")
 		return
 	}
-	if len(c.Destination) == 0 {
+	if len(c.Destination) == 0 || c.Destination[0] == nil {
 		o.Errorf("No destination target found.")
 		return
 	}
 	destPos := c.Destination[0].Position()
+	if !isValidVec3(destPos) {
+		o.Errorf("Destination coordinates must not contain NaN or Infinity.")
+		return
+	}
 	p.Teleport(destPos)
 	o.Printf("Teleported %s to %.2f, %.2f, %.2f", p.Name(), destPos[0], destPos[1], destPos[2])
 }
@@ -70,8 +78,15 @@ func (c TeleportTargetPos) Allow(src cmd.Source) bool {
 }
 
 func (c TeleportTargetPos) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
+	if !isValidVec3(c.Destination) {
+		o.Errorf("Destination coordinates must not contain NaN or Infinity.")
+		return
+	}
 	count := 0
 	for _, target := range c.Victim {
+		if target == nil {
+			continue
+		}
 		if p, ok := target.(*player.Player); ok {
 			p.Teleport(c.Destination)
 			count++
@@ -95,13 +110,20 @@ func (c TeleportTargetTarget) Allow(src cmd.Source) bool {
 }
 
 func (c TeleportTargetTarget) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
-	if len(c.Destination) == 0 {
+	if len(c.Destination) == 0 || c.Destination[0] == nil {
 		o.Errorf("No destination target found.")
 		return
 	}
 	destPos := c.Destination[0].Position()
+	if !isValidVec3(destPos) {
+		o.Errorf("Destination coordinates must not contain NaN or Infinity.")
+		return
+	}
 	count := 0
 	for _, target := range c.Victim {
+		if target == nil {
+			continue
+		}
 		if p, ok := target.(*player.Player); ok {
 			p.Teleport(destPos)
 			count++
