@@ -2,15 +2,17 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/df-mc/dragonfly/server/internal/sliceutil"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/go-gl/mathgl/mgl64"
+	"math"
 	"math/rand/v2"
 	"reflect"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/df-mc/dragonfly/server/internal/sliceutil"
+	"github.com/df-mc/dragonfly/server/world"
+	"github.com/go-gl/mathgl/mgl64"
 )
 
 // Line represents a command line holding command arguments that were passed upon the execution of the
@@ -236,17 +238,48 @@ func (p parser) sub(line *Line, name string) error {
 	return MessageParameterInvalid.F(arg)
 }
 
+// coord parses a single coordinate, supporting relative tilde notation (e.g. ~, ~5, ~-1).
+func (p parser) coord(line *Line, v reflect.Value, base float64) error {
+	arg, ok := line.Next()
+	if !ok {
+		return line.UsageError()
+	}
+	if strings.HasPrefix(arg, "~") {
+		offsetStr := arg[1:]
+		if offsetStr == "" {
+			v.SetFloat(base)
+			return nil
+		}
+		offset, err := strconv.ParseFloat(offsetStr, v.Type().Bits())
+		if err != nil {
+			return MessageNumberInvalid.F(arg)
+		}
+		v.SetFloat(base + offset)
+		return nil
+	}
+	value, err := strconv.ParseFloat(arg, v.Type().Bits())
+	if err != nil {
+		return MessageNumberInvalid.F(arg)
+	}
+	v.SetFloat(value)
+	return nil
+}
+
 // vec3 ...
 func (p parser) vec3(line *Line, v reflect.Value) error {
-	if err := p.float(line, v.Index(0)); err != nil {
+	var base mgl64.Vec3
+	if line.src != nil {
+		base = line.src.Position()
+	}
+	if err := p.coord(line, v.Index(0), base[0]); err != nil {
 		return err
 	}
 	line.RemoveNext()
-	if err := p.float(line, v.Index(1)); err != nil {
+	if err := p.coord(line, v.Index(1), base[1]); err != nil {
 		return err
 	}
 	line.RemoveNext()
-	return p.float(line, v.Index(2))
+	return p.coord(line, v.Index(2), base[2])
 }
 
 // varargs ...
@@ -278,7 +311,16 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 	if strings.HasPrefix(first, "@") && tx == nil {
 		return nil, MessageNoTargets.F()
 	}
-	switch first[:min(len(first), 2)] {
+
+	sel := first
+	var filterStr string
+	if idx := strings.Index(first, "["); idx != -1 && strings.HasSuffix(first, "]") {
+		sel = first[:idx]
+		filterStr = first[idx+1 : len(first)-1]
+	}
+
+	var res []Target
+	switch sel {
 	case "@p":
 		pos := line.src.Position()
 		playerDistances := make([]float64, len(players))
@@ -288,21 +330,19 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 		sort.Slice(players, func(i, j int) bool {
 			return playerDistances[i] < playerDistances[j]
 		})
-		if len(players) == 0 {
-			return nil, nil
+		if len(players) > 0 {
+			res = sliceutil.Convert[Target](players[0:1])
 		}
-		return sliceutil.Convert[Target](players[0:1]), nil
 	case "@e":
-		return entities, nil
+		res = entities
 	case "@a":
-		return sliceutil.Convert[Target](players), nil
+		res = sliceutil.Convert[Target](players)
 	case "@s":
-		return []Target{line.src}, nil
+		res = []Target{line.src}
 	case "@r":
-		if len(players) == 0 {
-			return nil, nil
+		if len(players) > 0 {
+			res = []Target{players[rand.IntN(len(players))]}
 		}
-		return []Target{players[rand.IntN(len(players))]}, nil
 	default:
 		target, err := p.parsePlayer(first, players)
 		if err != nil {
@@ -310,6 +350,112 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 		}
 		return []Target{target}, nil
 	}
+
+	if filterStr != "" && len(res) > 0 {
+		res = filterTargets(res, filterStr, line.src)
+	}
+
+	return res, nil
+}
+
+func filterTargets(targets []Target, filterStr string, src Source) []Target {
+	var srcPos mgl64.Vec3
+	if src != nil {
+		srcPos = src.Position()
+	}
+	filters := strings.Split(filterStr, ",")
+	limit := -1
+
+	filtered := slices.Clone(targets)
+	for _, f := range filters {
+		parts := strings.SplitN(strings.TrimSpace(f), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		k := strings.ToLower(strings.TrimSpace(parts[0]))
+		val := strings.TrimSpace(parts[1])
+
+		switch k {
+		case "r", "distance":
+			minD, maxD := parseTargetRange(val)
+			filtered = slices.DeleteFunc(filtered, func(t Target) bool {
+				d := t.Position().Sub(srcPos).Len()
+				return d < minD || d > maxD
+			})
+		case "rm":
+			if rm, err := strconv.ParseFloat(val, 64); err == nil {
+				filtered = slices.DeleteFunc(filtered, func(t Target) bool {
+					return t.Position().Sub(srcPos).Len() < rm
+				})
+			}
+		case "c", "limit":
+			if c, err := strconv.Atoi(val); err == nil && c > 0 {
+				limit = c
+			}
+		case "type":
+			invert := strings.HasPrefix(val, "!")
+			targetType := strings.TrimPrefix(val, "!")
+			targetType = strings.TrimPrefix(targetType, "minecraft:")
+			filtered = slices.DeleteFunc(filtered, func(t Target) bool {
+				match := matchTargetType(t, targetType)
+				if invert {
+					return match
+				}
+				return !match
+			})
+		case "name":
+			invert := strings.HasPrefix(val, "!")
+			targetName := strings.TrimPrefix(val, "!")
+			filtered = slices.DeleteFunc(filtered, func(t Target) bool {
+				match := false
+				if nt, ok := t.(NamedTarget); ok {
+					match = strings.EqualFold(nt.Name(), targetName)
+				}
+				if invert {
+					return match
+				}
+				return !match
+			})
+		}
+	}
+	if limit > 0 && len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	return filtered
+}
+
+func parseTargetRange(val string) (minD, maxD float64) {
+	maxD = math.MaxFloat64
+	if strings.Contains(val, "..") {
+		parts := strings.SplitN(val, "..", 2)
+		if parts[0] != "" {
+			if f, err := strconv.ParseFloat(parts[0], 64); err == nil {
+				minD = f
+			}
+		}
+		if parts[1] != "" {
+			if f, err := strconv.ParseFloat(parts[1], 64); err == nil {
+				maxD = f
+			}
+		}
+	} else {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			maxD = f
+		}
+	}
+	return minD, maxD
+}
+
+func matchTargetType(t Target, expected string) bool {
+	if _, ok := t.(NamedTarget); ok && strings.EqualFold(expected, "player") {
+		return true
+	}
+	if ent, ok := t.(world.Entity); ok {
+		encoded := ent.H().Type().EncodeEntity()
+		clean := strings.TrimPrefix(encoded, "minecraft:")
+		return strings.EqualFold(clean, expected)
+	}
+	return false
 }
 
 // parsePlayer attempts to find a target whose name matches the name passed.
