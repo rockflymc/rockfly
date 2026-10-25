@@ -49,3 +49,28 @@ func (ctx *Context[T]) Uncancel() {
 func (ctx *Context[T]) SetCancelled(cancelled bool) {
 	ctx.cancel = cancelled
 }
+
+// BaseCancellable provides an embeddable default implementation of ResettableCancellable.
+type BaseCancellable struct {
+	cancel bool
+}
+
+// Cancel marks the event as cancelled.
+func (c *BaseCancellable) Cancel() {
+	c.cancel = true
+}
+
+// Uncancel revokes previous cancellation of the event.
+func (c *BaseCancellable) Uncancel() {
+	c.cancel = false
+}
+
+// Cancelled reports whether the event has been marked as cancelled.
+func (c *BaseCancellable) Cancelled() bool {
+	return c.cancel
+}
+
+// SetCancelled explicitly sets the cancellation status of the event.
+func (c *BaseCancellable) SetCancelled(cancelled bool) {
+	c.cancel = cancelled
+}

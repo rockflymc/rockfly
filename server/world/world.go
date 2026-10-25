@@ -52,6 +52,7 @@ type World struct {
 
 	set     *Settings
 	handler atomic.Pointer[Handler]
+	bridge  *eventWorldBridge
 
 	weather
 
@@ -1339,12 +1340,28 @@ func (w *World) removeViewer(tx *Tx, pos ChunkPos, loader *Loader) {
 	}
 }
 
-// Handler returns the Handler of the world.
+// Handler returns the Handler of the world, bridging all events to event.DefaultBus()
+// with Paper-grade priority and cancellation semantics while delegating to any custom handler set with Handle.
 func (w *World) Handler() Handler {
 	if w == nil {
 		return NopHandler{}
 	}
-	return *w.handler.Load()
+	if w.bridge != nil {
+		return w.bridge
+	}
+	return &eventWorldBridge{w: w}
+}
+
+// CustomHandler returns the underlying custom Handler set on the world via Handle.
+func (w *World) CustomHandler() Handler {
+	if w == nil {
+		return NopHandler{}
+	}
+	h := w.handler.Load()
+	if h == nil {
+		return NopHandler{}
+	}
+	return *h
 }
 
 // showEntity shows an Entity to a viewer of the world. It makes sure

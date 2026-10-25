@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/event"
 	"github.com/df-mc/dragonfly/server/internal/blockinternal"
 	"github.com/df-mc/dragonfly/server/internal/iteminternal"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
@@ -146,6 +147,7 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 			ret, err := world.Call(context.Background(), inc.w, func(tx *world.Tx) (bool, error) {
 				p := tx.AddEntity(inc.p.handle).(*player.Player)
 				inc.s.Spawn(p, tx)
+				event.DefaultBus().Publish(&player.PlayerJoinEvent{Player: p})
 				return !yield(p), nil
 			})
 			if err != nil {

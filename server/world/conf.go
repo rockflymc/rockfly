@@ -164,6 +164,7 @@ func (conf Config) New() *World {
 	}
 	w.chunkWorkers = newChunkWorkerPool(w)
 	w.weather = weather{w: w}
+	w.bridge = &eventWorldBridge{w: w}
 	var h Handler = NopHandler{}
 	w.handler.Store(&h)
 

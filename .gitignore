@@ -7,8 +7,13 @@
 *.exe
 
 # Dragonfly & Rockfly runtime files
-**/world/
-**/players/
+/world/
+/worlds/
+/players/
+cmd/rockfly/world/
+cmd/rockfly/players/
+server/world/db/
+server/players/
 /resources/
 **/logs/
 **/.rockfly_history
