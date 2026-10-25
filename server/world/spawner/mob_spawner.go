@@ -88,11 +88,17 @@ func (s *MobSpawner) InSpawnRing(candidatePos, playerPos mgl64.Vec3) bool {
 
 // CanSpawnHostile checks 1.18+ hostile rules: block light == 0, solid floor, clear headroom.
 func (s *MobSpawner) CanSpawnHostile(tx *world.Tx, pos cube.Pos, playerDist float64) bool {
-	if playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
+	if s == nil || playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
 		return false
 	}
 	if tx == nil {
 		return true
+	}
+	if tx.World() != nil {
+		r := tx.World().Range()
+		if pos.Y() < r.Min() || pos.Y() >= r.Max() {
+			return false
+		}
 	}
 
 	// 1. Light check: BlockLight must be 0 for monsters in Caves & Cliffs 1.18+
@@ -114,11 +120,17 @@ func (s *MobSpawner) CanSpawnHostile(tx *world.Tx, pos cube.Pos, playerDist floa
 
 // CanSpawnPassive checks passive animal rules: daylight sky light >= 9, grass floor, clear headroom.
 func (s *MobSpawner) CanSpawnPassive(tx *world.Tx, pos cube.Pos, playerDist float64) bool {
-	if playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
+	if s == nil || playerDist < s.minSpawnRadius || playerDist > s.maxSpawnRadius {
 		return false
 	}
 	if tx == nil {
 		return true
+	}
+	if tx.World() != nil {
+		r := tx.World().Range()
+		if pos.Y() < r.Min() || pos.Y() >= r.Max() {
+			return false
+		}
 	}
 
 	// 1. Sky light check: Animals require sunlight (SkyLight >= 9)
@@ -140,6 +152,16 @@ func (s *MobSpawner) CanSpawnPassive(tx *world.Tx, pos cube.Pos, playerDist floa
 
 // GenerateCandidateCoordinates samples randomized spawn positions around a center player.
 func (s *MobSpawner) GenerateCandidateCoordinates(playerPos mgl64.Vec3, count int) []cube.Pos {
+	if s == nil || count <= 0 {
+		return nil
+	}
+	if math.IsNaN(playerPos[0]) || math.IsNaN(playerPos[1]) || math.IsNaN(playerPos[2]) ||
+		math.IsInf(playerPos[0], 0) || math.IsInf(playerPos[1], 0) || math.IsInf(playerPos[2], 0) {
+		return nil
+	}
+	if count > 256 {
+		count = 256
+	}
 	candidates := make([]cube.Pos, 0, count)
 
 	for i := 0; i < count; i++ {
