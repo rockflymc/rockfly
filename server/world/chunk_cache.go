@@ -15,9 +15,9 @@ type cacheEntry struct {
 // It keeps recently accessed chunks in memory to eliminate redundant disk reads
 // during high-speed player flight and frequent border crossing.
 type ChunkCache struct {
-	mu       sync.Mutex
-	capacity int
-	items    map[ChunkPos]*list.Element
+	mu        sync.Mutex
+	capacity  int
+	items     map[ChunkPos]*list.Element
 	evictList *list.List
 }
 
