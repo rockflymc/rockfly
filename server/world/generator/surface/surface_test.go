@@ -126,6 +126,23 @@ func TestBuildSurface(t *testing.T) {
 	if subDesert != sandstoneRID {
 		t.Fatalf("expected sandstone at Y=65, got %d", subDesert)
 	}
+
+	// Test 3: Nil safety
+	var nilBuilder *surface.RuleBuilder
+	nilBuilder.BuildSurface(0, 0, nil)
+	builder.BuildSurface(0, 0, nil)
+
+	// Test 4: Snowy slopes
+	chSnow := chunk.New(reg, cube.Range{-64, 319})
+	chSnow.SetBiome(0, 64, 0, uint32(biome.SnowySlopes{}.EncodeBiome()))
+	for y := -64; y <= 70; y++ {
+		chSnow.SetBlock(0, int16(y), 0, 0, stoneRID)
+	}
+	builder.BuildSurface(0, 0, chSnow)
+	snowRID := reg.BlockRuntimeID(block.Snow{})
+	if chSnow.Block(0, 70, 0, 0) != snowRID {
+		t.Fatalf("expected snow at Y=70 in SnowySlopes, got %d", chSnow.Block(0, 70, 0, 0))
+	}
 }
 
 func BenchmarkBuildSurface(b *testing.B) {

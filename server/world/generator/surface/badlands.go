@@ -37,6 +37,9 @@ func NewBadlandsBands(reg world.BlockRegistry) *BadlandsBands {
 
 // BandAt returns the terracotta block runtime ID at absolute height y.
 func (b *BadlandsBands) BandAt(y int) uint32 {
+	if b == nil {
+		return 0
+	}
 	idx := (y%64 + 64) % 64
 	return b.layers[idx]
 }
