@@ -3,6 +3,7 @@ package world
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,12 +35,12 @@ type EntityHandoff struct {
 // ParallelWorldTicker coordinates concurrent execution of multiple dimensions (Overworld, Nether, End)
 // across independent CPU cores, providing lock-free inter-world entity handoff channels.
 type ParallelWorldTicker struct {
-	mu     sync.RWMutex
-	worlds map[string]*World
-
-	handoffs chan EntityHandoff
-	closed   atomic.Bool
-	wg       sync.WaitGroup
+	mu        sync.RWMutex
+	worlds    map[string]*World
+	channelMu sync.RWMutex
+	handoffs  chan EntityHandoff
+	closed    atomic.Bool
+	wg        sync.WaitGroup
 
 	tickStats map[string]*WorldTickStats
 }
@@ -70,6 +71,9 @@ func NewParallelWorldTicker(handoffBufferSize int) *ParallelWorldTicker {
 
 // RegisterWorld registers a world dimension with the parallel ticker.
 func (p *ParallelWorldTicker) RegisterWorld(name string, w *World) {
+	if p == nil || w == nil {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -81,6 +85,9 @@ func (p *ParallelWorldTicker) RegisterWorld(name string, w *World) {
 
 // Stats returns the real-time tick performance statistics for the named dimension.
 func (p *ParallelWorldTicker) Stats(name string) (*WorldTickStats, bool) {
+	if p == nil {
+		return nil, false
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -91,9 +98,17 @@ func (p *ParallelWorldTicker) Stats(name string) (*WorldTickStats, bool) {
 // TransferEntity queues an entity to be atomically handed off from its source world to the target world
 // without holding cross-world locks. If target world does not accept the entity before timeout, fallback occurs.
 func (p *ParallelWorldTicker) TransferEntity(handoff EntityHandoff) bool {
-	if p.closed.Load() || handoff.Source == nil || handoff.Target == nil {
+	if p == nil || p.closed.Load() || handoff.Source == nil || handoff.Target == nil || handoff.Handle == nil {
 		if handoff.OnFail != nil {
-			handoff.OnFail(fmt.Errorf("parallel ticker closed or invalid world reference"))
+			handoff.OnFail(fmt.Errorf("parallel ticker closed or invalid handoff references"))
+		}
+		return false
+	}
+
+	if math.IsNaN(handoff.Pos[0]) || math.IsNaN(handoff.Pos[1]) || math.IsNaN(handoff.Pos[2]) ||
+		math.IsInf(handoff.Pos[0], 0) || math.IsInf(handoff.Pos[1], 0) || math.IsInf(handoff.Pos[2], 0) {
+		if handoff.OnFail != nil {
+			handoff.OnFail(fmt.Errorf("handoff position contains NaN or Inf values"))
 		}
 		return false
 	}
@@ -102,10 +117,21 @@ func (p *ParallelWorldTicker) TransferEntity(handoff EntityHandoff) bool {
 		handoff.Timeout = 5 * time.Second
 	}
 
+	p.channelMu.RLock()
+	if p.closed.Load() {
+		p.channelMu.RUnlock()
+		if handoff.OnFail != nil {
+			handoff.OnFail(fmt.Errorf("parallel ticker closed"))
+		}
+		return false
+	}
+
 	select {
 	case p.handoffs <- handoff:
+		p.channelMu.RUnlock()
 		return true
 	default:
+		p.channelMu.RUnlock()
 		// Handoff channel full: execute synchronously as fallback
 		go p.processSingleHandoff(handoff)
 		return true
@@ -123,6 +149,14 @@ func (p *ParallelWorldTicker) handoffProcessor() {
 
 // processSingleHandoff atomically executes an entity transfer to target world with timeout protection.
 func (p *ParallelWorldTicker) processSingleHandoff(h EntityHandoff) {
+	defer func() {
+		if r := recover(); r != nil {
+			if h.OnFail != nil {
+				h.OnFail(fmt.Errorf("handoff panic: %v", r))
+			}
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), h.Timeout)
 	defer cancel()
 
@@ -150,11 +184,17 @@ func (p *ParallelWorldTicker) processSingleHandoff(h EntityHandoff) {
 // TickSynchronousParallel advances all registered worlds concurrently by a single tick.
 // Useful for integration tests and synchronous tick environments.
 func (p *ParallelWorldTicker) TickSynchronousParallel() {
+	if p == nil {
+		return
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	var wg sync.WaitGroup
 	for _, w := range p.worlds {
+		if w == nil {
+			continue
+		}
 		wg.Add(1)
 		go func(target *World) {
 			defer wg.Done()
@@ -166,8 +206,13 @@ func (p *ParallelWorldTicker) TickSynchronousParallel() {
 
 // Close gracefully closes the parallel ticker and drains handoff channels.
 func (p *ParallelWorldTicker) Close() {
+	if p == nil {
+		return
+	}
 	if p.closed.CompareAndSwap(false, true) {
+		p.channelMu.Lock()
 		close(p.handoffs)
+		p.channelMu.Unlock()
 		p.wg.Wait()
 	}
 }
