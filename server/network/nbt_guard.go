@@ -43,8 +43,8 @@ type NBTGuardConfig struct {
 func DefaultNBTGuardConfig() NBTGuardConfig {
 	return NBTGuardConfig{
 		MaxDepth:          32,
-		MaxPayloadSize:    2 * 1024 * 1024,  // 2MB
-		MaxStringLength:   64 * 1024,        // 64KB
+		MaxPayloadSize:    2 * 1024 * 1024, // 2MB
+		MaxStringLength:   64 * 1024,       // 64KB
 		MaxElements:       10000,
 		MaxBookPages:      100,
 		MaxBookPageLength: 1024,
