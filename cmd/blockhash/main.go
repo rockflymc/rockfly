@@ -23,7 +23,7 @@ func main() {
 		log.Fatalln("Must pass one package to produce block hashes for.")
 	}
 	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedFiles,
+		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedFiles | packages.NeedDeps | packages.NeedImports,
 	}
 	pkgs, err := packages.Load(cfg, flag.Args()[0])
 	if err != nil {
@@ -282,6 +282,8 @@ func (b *hashBuilder) ftype(structName, s string, expr ast.Expr, directives map[
 		return "uint64(" + s + ".Uint8())", 2
 	case "OreType", "FireType", "DoubleTallGrassType":
 		return "uint64(" + s + ".Uint8())", 1
+	case "ComparatorMode":
+		return "uint64(" + s + ")", 1
 	case "BambooLeafSize":
 		return "uint64(" + s + ".Uint8())", 2
 	case "Direction", "Axis":
