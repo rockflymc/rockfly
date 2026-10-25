@@ -243,3 +243,50 @@ func BenchmarkTicketManager_Reap(b *testing.B) {
 		tm.Reap(100)
 	}
 }
+
+func TestTicketManager_NilSafety(t *testing.T) {
+	var tm *TicketManager
+	tm.OnStateChange(func(pos Pos, from, to ChunkState) {})
+	tm.AddTicket(Pos{0, 0}, Ticket{Type: TicketPlayer, Level: 31, Radius: 2})
+	if tm.RemoveTicket(Pos{0, 0}, TicketPlayer, nil, 0) {
+		t.Fatal("expected false on nil RemoveTicket")
+	}
+	if tm.Level(Pos{0, 0}) != LevelMax {
+		t.Fatal("expected LevelMax on nil Level")
+	}
+	if tm.State(Pos{0, 0}) != StateInaccessible {
+		t.Fatal("expected StateInaccessible on nil State")
+	}
+	if tm.HasLinger(Pos{0, 0}, 0) {
+		t.Fatal("expected false on nil HasLinger")
+	}
+	if !tm.CanUnload(Pos{0, 0}, 0) {
+		t.Fatal("expected true on nil CanUnload")
+	}
+	count, evictable := tm.Reap(0)
+	if count != 0 || evictable != nil {
+		t.Fatal("expected 0 and nil on nil Reap")
+	}
+}
+
+func TestTicketManager_RecomputeIgnoresExpired(t *testing.T) {
+	tm := NewTicketManager(100)
+	origin := Pos{0, 0}
+	tm.AddTicket(origin, Ticket{
+		Type:   TicketPortal,
+		Level:  LevelEntityTicking,
+		Radius: 1,
+		Expiry: 50,
+	})
+
+	// Before expiry at tick 20
+	if tm.Level(origin) != LevelEntityTicking {
+		t.Fatalf("expected level 31 before expiry, got %d", tm.Level(origin))
+	}
+
+	// Trigger recompute at tick 60 (after expiry)
+	tm.recomputeChunkLevel(origin, 60)
+	if tm.Level(origin) != LevelMax {
+		t.Fatalf("expected level to drop to LevelMax after expiry, got %d", tm.Level(origin))
+	}
+}

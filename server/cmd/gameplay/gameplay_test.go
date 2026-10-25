@@ -218,3 +218,105 @@ func TestGameModeCommand(t *testing.T) {
 	})
 	<-task.Done()
 }
+
+func TestGameMode_PermissionEnforcement(t *testing.T) {
+	RegisterAll(nil)
+
+	w := world.New()
+	defer w.Close()
+
+	gmCmd, ok := cmd.ByAlias("gamemode")
+	if !ok {
+		t.Fatalf("gamemode command not found")
+	}
+
+	task := w.Do(func(tx *world.Tx) {
+		h := world.NewEntity(player.Type, player.Config{
+			Name:     "NonOpPlayer",
+			UUID:     uuid.New(),
+			GameMode: world.GameModeSurvival,
+		})
+		p := tx.AddEntity(h).(*player.Player)
+
+		// Non-op player attempts to run /gamemode creative
+		gmCmd.Execute("creative", p, tx)
+		if p.GameMode() != world.GameModeSurvival {
+			t.Errorf("vulnerability: non-op player was able to set creative gamemode!")
+		}
+	})
+	<-task.Done()
+}
+
+func TestSpatialCommands_NaNAndBoundsSanitization(t *testing.T) {
+	RegisterAll(nil)
+
+	w := world.New()
+	defer w.Close()
+
+	src := &testCaptureSource{name: "CONSOLE"}
+
+	task := w.Do(func(tx *world.Tx) {
+		// Test setblock with NaN coordinates
+		sbCmd, _ := cmd.ByAlias("setblock")
+		sbCmd.Execute("NaN 64 0 stone", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for NaN setblock coordinates")
+		}
+
+		// Test setblock out of bounds
+		src.errors = nil
+		sbCmd.Execute("0 5000 0 stone", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for out of bounds setblock")
+		}
+
+		// Test fill with NaN coordinates
+		src.errors = nil
+		fillCmd, _ := cmd.ByAlias("fill")
+		fillCmd.Execute("0 NaN 0 10 64 10 stone", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for NaN fill coordinates")
+		}
+
+		// Test fill out of bounds height
+		src.errors = nil
+		fillCmd.Execute("0 1000 0 10 2000 10 stone", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for out of bounds fill coordinates")
+		}
+	})
+	<-task.Done()
+}
+
+func TestValueValidation(t *testing.T) {
+	RegisterAll(nil)
+
+	w := world.New()
+	defer w.Close()
+
+	src := &testCaptureSource{name: "CONSOLE"}
+
+	task := w.Do(func(tx *world.Tx) {
+		h := world.NewEntity(player.Type, player.Config{
+			Name: "Player1",
+			UUID: uuid.New(),
+		})
+		_ = tx.AddEntity(h)
+
+		// Give invalid amount
+		giveCmd, _ := cmd.ByAlias("give")
+		giveCmd.Execute("Player1 diamond 999999", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for give amount exceeding limit")
+		}
+
+		// Effect invalid duration
+		src.errors = nil
+		effCmd, _ := cmd.ByAlias("effect")
+		effCmd.Execute("Player1 speed 9999999", src, tx)
+		if len(src.errors) == 0 {
+			t.Errorf("expected error for effect duration exceeding limit")
+		}
+	})
+	<-task.Done()
+}

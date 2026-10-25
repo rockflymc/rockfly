@@ -36,6 +36,9 @@ func NewOrePlacer() *OrePlacer {
 
 // NewOrePlacerWithRegistry constructs an OrePlacer with a specified BlockRegistry.
 func NewOrePlacerWithRegistry(reg world.BlockRegistry) *OrePlacer {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &OrePlacer{
 		stone:      reg.BlockRuntimeID(block.Stone{}),
 		deepslate:  reg.BlockRuntimeID(block.Deepslate{}),
@@ -46,7 +49,13 @@ func NewOrePlacerWithRegistry(reg world.BlockRegistry) *OrePlacer {
 
 // PlaceChunk processes all configured ore batches for a single chunk column.
 func (p *OrePlacer) PlaceChunk(c *chunk.Chunk, chunkX, chunkZ int, configs []OreConfiguration, r *rand.Rand) {
+	if p == nil || c == nil || r == nil {
+		return
+	}
 	for _, cfg := range configs {
+		if cfg.Distribution == nil {
+			continue
+		}
 		for range cfg.BatchesPerChunk {
 			originX := r.IntN(16)
 			originZ := r.IntN(16)
@@ -59,7 +68,7 @@ func (p *OrePlacer) PlaceChunk(c *chunk.Chunk, chunkX, chunkZ int, configs []Ore
 
 // PlaceVein generates a continuous ellipsoidal ore vein cluster.
 func (p *OrePlacer) PlaceVein(c *chunk.Chunk, localX, y, localZ int, cfg OreConfiguration, r *rand.Rand) {
-	if cfg.VeinSize <= 0 {
+	if p == nil || c == nil || r == nil || cfg.VeinSize <= 0 {
 		return
 	}
 	if cfg.VeinSize == 1 {

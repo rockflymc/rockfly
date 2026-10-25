@@ -25,12 +25,21 @@ type RuleBuilder struct {
 	bedrock   uint32
 	water     uint32
 
-	desertID   uint32
-	badlandsID uint32
-	snowyID    uint32
-	taigaID    uint32
-	beachID    uint32
-	stonyID    uint32
+	desertID         uint32
+	badlandsID       uint32
+	erodedBadlandsID uint32
+	woodedBadlandsID uint32
+	snowyID          uint32
+	snowyBeachID     uint32
+	snowyTaigaID     uint32
+	snowySlopesID    uint32
+	iceSpikesID      uint32
+	frozenPeaksID    uint32
+	taigaID          uint32
+	oldGrowthPineID  uint32
+	oldGrowthSpruceID uint32
+	beachID          uint32
+	stonyID          uint32
 }
 
 // NewRuleBuilder constructs a RuleBuilder using the DefaultBlockRegistry and given seed.
@@ -40,6 +49,9 @@ func NewRuleBuilder(seed int64) *RuleBuilder {
 
 // NewRuleBuilderWithRegistry constructs a RuleBuilder using a specific BlockRegistry.
 func NewRuleBuilderWithRegistry(seed int64, reg world.BlockRegistry) *RuleBuilder {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &RuleBuilder{
 		seed:      seed,
 		badlands:  NewBadlandsBands(reg),
@@ -56,17 +68,29 @@ func NewRuleBuilderWithRegistry(seed int64, reg world.BlockRegistry) *RuleBuilde
 		bedrock:   reg.BlockRuntimeID(block.Bedrock{}),
 		water:     reg.BlockRuntimeID(block.Water{Still: true, Depth: 8}),
 
-		desertID:   uint32(biome.Desert{}.EncodeBiome()),
-		badlandsID: uint32(biome.Badlands{}.EncodeBiome()),
-		snowyID:    uint32(biome.SnowyPlains{}.EncodeBiome()),
-		taigaID:    uint32(biome.Taiga{}.EncodeBiome()),
-		beachID:    uint32(biome.Beach{}.EncodeBiome()),
-		stonyID:    uint32(biome.StonyPeaks{}.EncodeBiome()),
+		desertID:          uint32(biome.Desert{}.EncodeBiome()),
+		badlandsID:        uint32(biome.Badlands{}.EncodeBiome()),
+		erodedBadlandsID:  uint32(biome.ErodedBadlands{}.EncodeBiome()),
+		woodedBadlandsID:  uint32(biome.WoodedBadlandsPlateau{}.EncodeBiome()),
+		snowyID:           uint32(biome.SnowyPlains{}.EncodeBiome()),
+		snowyBeachID:      uint32(biome.SnowyBeach{}.EncodeBiome()),
+		snowyTaigaID:      uint32(biome.SnowyTaiga{}.EncodeBiome()),
+		snowySlopesID:     uint32(biome.SnowySlopes{}.EncodeBiome()),
+		iceSpikesID:       uint32(biome.IceSpikes{}.EncodeBiome()),
+		frozenPeaksID:     uint32(biome.FrozenPeaks{}.EncodeBiome()),
+		taigaID:           uint32(biome.Taiga{}.EncodeBiome()),
+		oldGrowthPineID:   uint32(biome.OldGrowthPineTaiga{}.EncodeBiome()),
+		oldGrowthSpruceID: uint32(biome.OldGrowthSpruceTaiga{}.EncodeBiome()),
+		beachID:           uint32(biome.Beach{}.EncodeBiome()),
+		stonyID:           uint32(biome.StonyPeaks{}.EncodeBiome()),
 	}
 }
 
 // BuildSurface populates biome surface blocks and authentic bedrock stratification for a chunk.
 func (b *RuleBuilder) BuildSurface(chunkX, chunkZ int, c *chunk.Chunk) {
+	if b == nil || c == nil {
+		return
+	}
 	originX := chunkX << 4
 	originZ := chunkZ << 4
 
@@ -130,18 +154,18 @@ func (b *RuleBuilder) BuildSurface(chunkX, chunkZ int, c *chunk.Chunk) {
 					for d := 4; d < 7 && surfaceY-d >= -55; d++ {
 						c.SetBlock(x, int16(surfaceY-d), z, 0, b.sandstone)
 					}
-				case b.badlandsID:
+				case b.badlandsID, b.erodedBadlandsID, b.woodedBadlandsID:
 					c.SetBlock(x, int16(surfaceY), z, 0, b.redSand)
 					for d := 1; d < 20 && surfaceY-d >= -55; d++ {
 						ty := surfaceY - d
 						c.SetBlock(x, int16(ty), z, 0, b.badlands.BandAt(ty))
 					}
-				case b.snowyID:
+				case b.snowyID, b.snowyBeachID, b.snowyTaigaID, b.snowySlopesID, b.iceSpikesID, b.frozenPeaksID:
 					c.SetBlock(x, int16(surfaceY), z, 0, b.snow)
 					for d := 1; d < 4 && surfaceY-d >= -55; d++ {
 						c.SetBlock(x, int16(surfaceY-d), z, 0, b.dirt)
 					}
-				case b.taigaID:
+				case b.taigaID, b.oldGrowthPineID, b.oldGrowthSpruceID:
 					c.SetBlock(x, int16(surfaceY), z, 0, b.podzol)
 					for d := 1; d < 4 && surfaceY-d >= -55; d++ {
 						c.SetBlock(x, int16(surfaceY-d), z, 0, b.dirt)

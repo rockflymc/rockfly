@@ -51,6 +51,9 @@ func NewManager() *Manager {
 
 // Add registers a structure instance and indexes all overlapping chunk columns.
 func (m *Manager) Add(inst *Instance) {
+	if m == nil || inst == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -71,6 +74,9 @@ func (m *Manager) Add(inst *Instance) {
 
 // StructuresAt returns all structure instances overlapping the specified chunk.
 func (m *Manager) StructuresAt(pos world.ChunkPos) []*Instance {
+	if m == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -79,6 +85,9 @@ func (m *Manager) StructuresAt(pos world.ChunkPos) []*Instance {
 
 // InsideStructure reports whether world coordinates pos lie within any registered structure of type t.
 func (m *Manager) InsideStructure(pos cube.Pos, t Type) bool {
+	if m == nil {
+		return false
+	}
 	cPos := world.ChunkPos{int32(pos.X() >> 4), int32(pos.Z() >> 4)}
 
 	m.mu.RLock()
@@ -94,6 +103,9 @@ func (m *Manager) InsideStructure(pos cube.Pos, t Type) bool {
 
 // InsidePiece reports whether pos lies within a named piece sub-component of structure type t.
 func (m *Manager) InsidePiece(pos cube.Pos, t Type, pieceName string) bool {
+	if m == nil {
+		return false
+	}
 	cPos := world.ChunkPos{int32(pos.X() >> 4), int32(pos.Z() >> 4)}
 
 	m.mu.RLock()
@@ -113,6 +125,9 @@ func (m *Manager) InsidePiece(pos cube.Pos, t Type, pieceName string) bool {
 
 // Clear flushes all indexed structure instances.
 func (m *Manager) Clear() {
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

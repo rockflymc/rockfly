@@ -21,6 +21,9 @@ func NewSpaghettiCarver(seed int64) *SpaghettiCarver {
 
 // IsCave returns true if (x, y, z) falls within a spaghetti cave tunnel.
 func (s *SpaghettiCarver) IsCave(x, y, z int) bool {
+	if s == nil || s.noiseA == nil || s.noiseB == nil {
+		return false
+	}
 	if y > 64 || y <= -60 {
 		return false
 	}

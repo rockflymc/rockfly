@@ -57,6 +57,9 @@ func (h TripwireHook) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face cube.
 
 // CheckLine inspects the tripwire line in front of the hook and updates attached & powered states.
 func (h TripwireHook) CheckLine(pos cube.Pos, tx *world.Tx) (attached bool, powered bool) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false, false
+	}
 	stepDir := h.Facing.Face()
 	oppDir := h.Facing.Opposite()
 
@@ -68,6 +71,9 @@ func (h TripwireHook) CheckLine(pos cube.Pos, tx *world.Tx) (attached bool, powe
 	currPos := pos
 	for i := 1; i <= 40; i++ {
 		currPos = currPos.Side(stepDir)
+		if currPos.OutOfBounds(tx.Range()) {
+			break
+		}
 		currBlock := tx.Block(currPos)
 		if currBlock == nil {
 			break
@@ -136,8 +142,11 @@ func (h TripwireHook) CheckLine(pos cube.Pos, tx *world.Tx) (attached bool, powe
 
 // NeighbourUpdateTick validates attachment to wall and checks the tripwire line.
 func (h TripwireHook) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	wallPos := pos.Side(h.Facing.Opposite().Face())
-	if !tx.Block(wallPos).Model().FaceSolid(wallPos, h.Facing.Face(), tx) {
+	if wallPos.OutOfBounds(tx.Range()) || !tx.Block(wallPos).Model().FaceSolid(wallPos, h.Facing.Face(), tx) {
 		tx.SetBlock(pos, Air{}, nil)
 		dropItem(tx, item.NewStack(TripwireHook{}, 1), pos.Vec3Centre())
 		return
@@ -147,6 +156,9 @@ func (h TripwireHook) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 // ScheduledTick turns off power when an entity departs the wire.
 func (h TripwireHook) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	h.CheckLine(pos, tx)
 }
 
@@ -174,7 +186,9 @@ func (h TripwireHook) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx 
 // BreakInfo ...
 func (h TripwireHook) BreakInfo() BreakInfo {
 	return newBreakInfo(0.5, alwaysHarvestable, axeEffective, oneOf(TripwireHook{})).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
-		h.CheckLine(pos, tx)
+		if tx != nil && !pos.OutOfBounds(tx.Range()) {
+			h.CheckLine(pos, tx)
+		}
 	})
 }
 

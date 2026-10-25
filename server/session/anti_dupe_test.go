@@ -6,6 +6,7 @@ import (
 
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/inventory"
+	"github.com/google/uuid"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
@@ -97,4 +98,26 @@ func BenchmarkAntiDupeGuard_ValidateCount(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = guard.ValidateCount(byte((i % 64) + 1))
 	}
+}
+
+func TestAntiDupeGuard_NilAndZeroSafety(t *testing.T) {
+	// 1. Nil guard checks
+	var nilGuard *AntiDupeGuard
+	if err := nilGuard.ValidateRequest(nil, protocol.ItemStackRequest{}); err != nil {
+		t.Fatalf("expected nil error on nil guard ValidateRequest, got %v", err)
+	}
+	nilGuard.ResyncContainer(nil, nil, 0)
+	nilGuard.Clear(uuid.Nil)
+
+	// 2. Nil session / connection checks
+	guard := NewAntiDupeGuard()
+	if err := guard.ValidateRequest(nil, protocol.ItemStackRequest{Actions: []protocol.StackRequestAction{&protocol.TakeStackRequestAction{}}}); err == nil {
+		t.Fatal("expected error on nil session")
+	}
+	guard.ResyncContainer(nil, nil, 0)
+	guard.ResyncContainer(&Session{}, nil, 0)
+
+	// 3. Zero-valued guard
+	var zeroGuard AntiDupeGuard
+	zeroGuard.Clear(uuid.Nil)
 }

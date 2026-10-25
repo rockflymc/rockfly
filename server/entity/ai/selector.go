@@ -26,6 +26,9 @@ func NewGoalSelector() *GoalSelector {
 
 // AddGoal registers a new goal at the given priority. Lower numbers have higher priority.
 func (s *GoalSelector) AddGoal(priority int, g Goal) {
+	if s == nil || g == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -40,6 +43,9 @@ func (s *GoalSelector) AddGoal(priority int, g Goal) {
 
 // RemoveGoal removes a registered goal from the selector, stopping it if currently running.
 func (s *GoalSelector) RemoveGoal(g Goal) {
+	if s == nil || g == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -57,6 +63,9 @@ func (s *GoalSelector) RemoveGoal(g Goal) {
 // Tick executes a single tick of the goal selector.
 // High priority goals can preempt lower priority running goals claiming the same ControlFlags.
 func (s *GoalSelector) Tick() {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -113,6 +122,9 @@ func (s *GoalSelector) Tick() {
 
 // RunningGoals returns all goals currently in active execution.
 func (s *GoalSelector) RunningGoals() []Goal {
+	if s == nil {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

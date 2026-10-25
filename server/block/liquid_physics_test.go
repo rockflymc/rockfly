@@ -2,6 +2,7 @@ package block
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -172,4 +173,38 @@ func BenchmarkBubbleColumn_EntityInside(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bc.EntityInside(pos, nil, ent)
 	}
+}
+
+func TestBubbleColumn_NilAndNaNSafety(t *testing.T) {
+	bc := BubbleColumn{DragDown: false}
+	pos := cube.Pos{0, 64, 0}
+
+	// 1. Nil entity inside
+	bc.EntityInside(pos, nil, nil)
+
+	// 2. NaN/Inf velocity inside
+	ent := &dummyPhysicsEntity{vel: mgl64.Vec3{math.NaN(), math.Inf(1), math.NaN()}}
+	bc.EntityInside(pos, nil, ent)
+	if math.IsNaN(ent.vel[0]) || math.IsNaN(ent.vel[1]) || math.IsNaN(ent.vel[2]) {
+		t.Fatalf("expected NaN velocity to be sanitized, got %+v", ent.vel)
+	}
+
+	// 3. Nil tx safety
+	bc.NeighbourUpdateTick(pos, pos, nil)
+	bc.ScheduledTick(pos, nil, nil)
+	if CheckCreateBubbleColumn(pos, nil) {
+		t.Fatal("expected CheckCreateBubbleColumn with nil tx to return false")
+	}
+
+	// 4. World boundary out-of-bounds safety
+	w := newTestWorld()
+	w.Do(func(tx *world.Tx) {
+		r := tx.Range()
+		outPos := cube.Pos{0, r.Max() + 10, 0}
+		bc.NeighbourUpdateTick(outPos, outPos, tx)
+		bc.ScheduledTick(outPos, tx, nil)
+		if CheckCreateBubbleColumn(outPos, tx) {
+			t.Fatal("expected CheckCreateBubbleColumn with out-of-bounds pos to return false")
+		}
+	}).Wait(context.Background())
 }

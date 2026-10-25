@@ -36,6 +36,11 @@ func (c ParticleCmd) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		pos = customPos
 	}
 
+	if !isValidVec3(pos) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	p, ok := parseParticle(c.Name)
 	if !ok {
 		o.Errorf("Unknown particle '%s'", c.Name)

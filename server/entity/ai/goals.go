@@ -52,7 +52,10 @@ func NewFloatGoal(mob Mob, inWater func() bool) *FloatGoal {
 }
 
 func (g *FloatGoal) CanUse() bool {
-	return g.inWater != nil && g.inWater()
+	if g.mob == nil || g.mob.Dead() || g.inWater == nil {
+		return false
+	}
+	return g.inWater()
 }
 
 func (g *FloatGoal) CanContinueToUse() bool {
@@ -60,6 +63,9 @@ func (g *FloatGoal) CanContinueToUse() bool {
 }
 
 func (g *FloatGoal) Tick() {
+	if g.mob == nil {
+		return
+	}
 	vel := g.mob.Velocity()
 	if vel[1] < 0.25 {
 		vel[1] = 0.25
@@ -84,6 +90,9 @@ type PanicGoal struct {
 
 // NewPanicGoal creates a PanicGoal that boosts mob speed when hurt or burning.
 func NewPanicGoal(mob Mob, speedMod float64, isPanicking func() bool) *PanicGoal {
+	if speedMod <= 0 || math.IsNaN(speedMod) || math.IsInf(speedMod, 0) {
+		speedMod = 1.25
+	}
 	return &PanicGoal{
 		BaseGoal:      NewBaseGoal(ControlMove),
 		mob:           mob,
@@ -94,7 +103,7 @@ func NewPanicGoal(mob Mob, speedMod float64, isPanicking func() bool) *PanicGoal
 }
 
 func (g *PanicGoal) CanUse() bool {
-	if g.mob.Dead() {
+	if g.mob == nil || g.mob.Dead() {
 		return false
 	}
 	if g.mob.OnFireDuration() > 0 {
@@ -104,21 +113,33 @@ func (g *PanicGoal) CanUse() bool {
 }
 
 func (g *PanicGoal) CanContinueToUse() bool {
-	return g.panicTicks > 0 && !g.mob.Dead()
+	if g.mob == nil || g.mob.Dead() {
+		return false
+	}
+	return g.panicTicks > 0
 }
 
 func (g *PanicGoal) Start() {
+	if g.mob == nil {
+		return
+	}
 	g.panicTicks = g.maxPanicTicks
 	g.originalSpeed = g.mob.Speed()
 	g.mob.SetSpeed(g.originalSpeed * g.speedMod)
 }
 
 func (g *PanicGoal) Stop() {
+	if g.mob == nil {
+		return
+	}
 	g.panicTicks = 0
 	g.mob.SetSpeed(g.originalSpeed)
 }
 
 func (g *PanicGoal) Tick() {
+	if g.mob == nil {
+		return
+	}
 	g.panicTicks--
 	// Random escape impulse
 	vel := g.mob.Velocity()
@@ -156,7 +177,7 @@ func NewMeleeAttackGoal(mob Mob, holder TargetHolder, attackRange, damage float6
 }
 
 func (g *MeleeAttackGoal) CanUse() bool {
-	if g.mob.Dead() || g.holder == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil {
 		return false
 	}
 	target := g.holder.Target()
@@ -174,12 +195,16 @@ func (g *MeleeAttackGoal) Start() {
 func (g *MeleeAttackGoal) Stop() {}
 
 func (g *MeleeAttackGoal) Tick() {
+	if g.mob == nil || g.holder == nil {
+		return
+	}
 	target := g.holder.Target()
-	if target == nil {
+	if target == nil || target.Dead() {
 		return
 	}
 
-	dist := target.Position().Sub(g.mob.Position()).Len()
+	diff := target.Position().Sub(g.mob.Position())
+	dist := diff.Len()
 
 	if g.cooldown > 0 {
 		g.cooldown--
@@ -195,11 +220,14 @@ func (g *MeleeAttackGoal) Tick() {
 		}
 	} else {
 		// Move toward target
-		dir := target.Position().Sub(g.mob.Position()).Normalize()
-		vel := g.mob.Velocity()
-		vel[0] = dir[0] * g.mob.Speed()
-		vel[2] = dir[2] * g.mob.Speed()
-		g.mob.SetVelocity(vel)
+		diff[1] = 0
+		if diff.Len() > 0 {
+			dir := diff.Normalize()
+			vel := g.mob.Velocity()
+			vel[0] = dir[0] * g.mob.Speed()
+			vel[2] = dir[2] * g.mob.Speed()
+			g.mob.SetVelocity(vel)
+		}
 	}
 }
 
@@ -227,7 +255,7 @@ func NewRandomStrollGoal(mob Mob, interval int) *RandomStrollGoal {
 }
 
 func (g *RandomStrollGoal) CanUse() bool {
-	if g.mob.Dead() {
+	if g.mob == nil || g.mob.Dead() {
 		return false
 	}
 	g.timer++
@@ -235,10 +263,16 @@ func (g *RandomStrollGoal) CanUse() bool {
 }
 
 func (g *RandomStrollGoal) CanContinueToUse() bool {
-	return g.walkTicks > 0 && !g.mob.Dead()
+	if g.mob == nil || g.mob.Dead() {
+		return false
+	}
+	return g.walkTicks > 0
 }
 
 func (g *RandomStrollGoal) Start() {
+	if g.mob == nil {
+		return
+	}
 	g.timer = 0
 	g.walkTicks = 40 + rand.IntN(40) // Walk 2 to 4 seconds
 	angle := rand.Float64() * 2 * math.Pi
@@ -249,6 +283,9 @@ func (g *RandomStrollGoal) Start() {
 }
 
 func (g *RandomStrollGoal) Stop() {
+	if g.mob == nil {
+		return
+	}
 	g.walkTicks = 0
 	vel := g.mob.Velocity()
 	vel[0] = 0
@@ -285,7 +322,7 @@ func NewLookAtEntityGoal(mob Mob, radius float64, findTarget func(radius float64
 }
 
 func (g *LookAtEntityGoal) CanUse() bool {
-	if g.mob.Dead() || g.findTarget == nil {
+	if g.mob == nil || g.mob.Dead() || g.findTarget == nil {
 		return false
 	}
 	target := g.findTarget(g.radius)
@@ -297,7 +334,7 @@ func (g *LookAtEntityGoal) CanUse() bool {
 }
 
 func (g *LookAtEntityGoal) CanContinueToUse() bool {
-	if g.mob.Dead() || g.lookTarget == nil || g.lookTicks <= 0 {
+	if g.mob == nil || g.mob.Dead() || g.lookTarget == nil || g.lookTicks <= 0 {
 		return false
 	}
 	dist := g.lookTarget.Position().Sub(g.mob.Position()).Len()
@@ -314,9 +351,15 @@ func (g *LookAtEntityGoal) Stop() {
 }
 
 func (g *LookAtEntityGoal) Tick() {
+	if g.mob == nil || g.lookTarget == nil {
+		return
+	}
 	g.lookTicks--
 	diff := g.lookTarget.Position().Sub(g.mob.Position())
 	horizontalDist := math.Hypot(diff[0], diff[2])
+	if horizontalDist == 0 && diff[1] == 0 {
+		return
+	}
 	yaw := -math.Atan2(diff[0], diff[2]) * 180 / math.Pi
 	pitch := -math.Atan2(diff[1], horizontalDist) * 180 / math.Pi
 

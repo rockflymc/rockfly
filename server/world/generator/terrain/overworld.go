@@ -41,6 +41,9 @@ func NewOverworld(seed int64) *Overworld {
 
 // NewOverworldWithRegistry constructs an Overworld generator using a specific BlockRegistry.
 func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	s := climate.NewSampler(seed)
 	v := climate.NewVoronoi(s, seed)
 	d := NewDensityEvaluator(seed, s)
@@ -74,6 +77,9 @@ func NewOverworldWithRegistry(seed int64, reg world.BlockRegistry) *Overworld {
 
 // GenerateChunk generates 3D terrain density and authentic biomes for the specified chunk column.
 func (o *Overworld) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
+	if c == nil {
+		return
+	}
 	grid := o.pool.Get().(*CellGrid)
 	defer o.pool.Put(grid)
 

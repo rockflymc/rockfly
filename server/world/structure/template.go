@@ -16,7 +16,14 @@ type Template struct {
 
 // NewTemplate constructs an empty Template with the specified bounding box dimensions.
 func NewTemplate(size cube.Pos) *Template {
+	if size.X() <= 0 || size.Y() <= 0 || size.Z() <= 0 {
+		return &Template{size: cube.Pos{0, 0, 0}}
+	}
+	const maxVolume = 16 * 1024 * 1024 // 16M voxels (e.g. 256x256x256 max bounds)
 	volume := size.X() * size.Y() * size.Z()
+	if volume > maxVolume || volume <= 0 {
+		return &Template{size: cube.Pos{0, 0, 0}}
+	}
 	indices := make([]int32, volume)
 	for i := range indices {
 		indices[i] = -1 // -1 signifies unpopulated / transparent void
@@ -30,6 +37,9 @@ func NewTemplate(size cube.Pos) *Template {
 
 // Dimensions returns the (width, height, depth) dimensions of the template.
 func (t *Template) Dimensions() cube.Pos {
+	if t == nil {
+		return cube.Pos{0, 0, 0}
+	}
 	return t.size
 }
 
@@ -40,6 +50,9 @@ func (t *Template) index(x, y, z int) int {
 
 // SetBlock sets the block at local coordinates (x, y, z).
 func (t *Template) SetBlock(pos cube.Pos, b world.Block) {
+	if t == nil || len(t.indices) == 0 {
+		return
+	}
 	if pos.X() < 0 || pos.X() >= t.size.X() ||
 		pos.Y() < 0 || pos.Y() >= t.size.Y() ||
 		pos.Z() < 0 || pos.Z() >= t.size.Z() {
@@ -71,6 +84,9 @@ func (t *Template) SetBlock(pos cube.Pos, b world.Block) {
 
 // Block returns the block at local coordinates pos.
 func (t *Template) Block(pos cube.Pos) (world.Block, bool) {
+	if t == nil || len(t.indices) == 0 {
+		return nil, false
+	}
 	if pos.X() < 0 || pos.X() >= t.size.X() ||
 		pos.Y() < 0 || pos.Y() >= t.size.Y() ||
 		pos.Z() < 0 || pos.Z() >= t.size.Z() {
@@ -85,6 +101,9 @@ func (t *Template) Block(pos cube.Pos) (world.Block, bool) {
 
 // Build places the template blocks into the world transaction tx at world origin after applying rotation and mirroring.
 func (t *Template) Build(tx *world.Tx, origin cube.Pos, rot Rotation, mirror Mirror) {
+	if t == nil || tx == nil || len(t.indices) == 0 {
+		return
+	}
 	for x := range t.size.X() {
 		for y := range t.size.Y() {
 			for z := range t.size.Z() {
@@ -103,6 +122,12 @@ func (t *Template) Build(tx *world.Tx, origin cube.Pos, rot Rotation, mirror Mir
 
 // BuildChunk places template blocks directly into a generating chunk column for zero-allocation performance.
 func (t *Template) BuildChunk(c *chunk.Chunk, chunkPos world.ChunkPos, origin cube.Pos, rot Rotation, mirror Mirror, reg world.BlockRegistry) {
+	if t == nil || c == nil || len(t.indices) == 0 {
+		return
+	}
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	minChunkX := int(chunkPos.X()) << 4
 	maxChunkX := minChunkX + 15
 	minChunkZ := int(chunkPos.Z()) << 4

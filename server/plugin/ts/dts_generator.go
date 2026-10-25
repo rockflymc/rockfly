@@ -144,5 +144,12 @@ func GenerateDTS(pluginsDir string) error {
 		return err
 	}
 	dtsPath := filepath.Join(pluginsDir, "rockfly.d.ts")
-	return os.WriteFile(dtsPath, []byte(DTSContent), 0644)
+	if existing, err := os.ReadFile(dtsPath); err == nil && string(existing) == DTSContent {
+		return nil
+	}
+	tmpPath := dtsPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(DTSContent), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, dtsPath)
 }

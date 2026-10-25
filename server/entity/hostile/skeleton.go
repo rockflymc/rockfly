@@ -121,7 +121,7 @@ func (g *BowAttackGoal) LastAimPos() mgl64.Vec3 {
 }
 
 func (g *BowAttackGoal) CanUse() bool {
-	if g.mob.Dead() || g.holder == nil {
+	if g.mob == nil || g.mob.Dead() || g.holder == nil {
 		return false
 	}
 	target := g.holder.Target()
@@ -146,8 +146,11 @@ func (g *BowAttackGoal) Stop() {
 }
 
 func (g *BowAttackGoal) Tick() {
+	if g.mob == nil || g.holder == nil {
+		return
+	}
 	target := g.holder.Target()
-	if target == nil {
+	if target == nil || target.Dead() {
 		return
 	}
 
@@ -177,7 +180,11 @@ func (g *BowAttackGoal) Tick() {
 	g.mob.SetRotation(cube.Rotation{yaw, pitch})
 
 	// 2. Combat movement & strafing
-	dirXZ := mgl64.Vec3{diff[0], 0, diff[2]}.Normalize()
+	hLen := math.Hypot(diff[0], diff[2])
+	if hLen < 0.001 {
+		return
+	}
+	dirXZ := mgl64.Vec3{diff[0] / hLen, 0, diff[2] / hLen}
 	perp := mgl64.Vec3{-dirXZ[2], 0, dirXZ[0]}
 	if !g.strafeClockwise {
 		perp = perp.Mul(-1)

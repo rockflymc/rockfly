@@ -77,6 +77,21 @@ func TestStructureBoundingBoxesAndManager(t *testing.T) {
 	if !mgr.InsidePiece(chamberPos, TypeDesertPyramid, "secret_chamber") {
 		t.Fatalf("expected pos %v to be inside secret_chamber piece", chamberPos)
 	}
+
+	// Test Nil Safety
+	mgr.Add(nil)
+	var nilMgr *Manager
+	nilMgr.Add(nil)
+	if nilMgr.StructuresAt(world.ChunkPos{0, 0}) != nil {
+		t.Fatal("expected nil slice from nil manager")
+	}
+	if nilMgr.InsideStructure(cube.Pos{0, 0, 0}, TypeVillage) {
+		t.Fatal("expected false from nil manager")
+	}
+	if nilMgr.InsidePiece(cube.Pos{0, 0, 0}, TypeVillage, "test") {
+		t.Fatal("expected false from nil manager")
+	}
+	nilMgr.Clear()
 }
 
 func TestStructureGridPlacement(t *testing.T) {

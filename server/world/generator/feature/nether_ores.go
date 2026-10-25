@@ -60,6 +60,9 @@ type NetherOreFeature struct {
 
 // NewNetherOreFeature constructs a NetherOreFeature with default vanilla configs.
 func NewNetherOreFeature(reg world.BlockRegistry) *NetherOreFeature {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &NetherOreFeature{
 		placer:  NewOrePlacerWithRegistry(reg),
 		configs: DefaultNetherOres(reg),
@@ -68,6 +71,9 @@ func NewNetherOreFeature(reg world.BlockRegistry) *NetherOreFeature {
 
 // Populate scatters all Nether ores deterministically for chunk coordinates (chunkX, chunkZ).
 func (f *NetherOreFeature) Populate(c *chunk.Chunk, chunkX, chunkZ int, seed int64) {
+	if f == nil || c == nil {
+		return
+	}
 	chunkSeed := uint64(seed) ^ (uint64(chunkX) * 0x4c1906) ^ (uint64(chunkZ) * 0x5ac0db)
 	r := rand.New(rand.NewPCG(chunkSeed, chunkSeed^0x9e3779b97f4a7c15))
 

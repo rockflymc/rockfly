@@ -40,6 +40,9 @@ func NewNether(seed int64) *Nether {
 
 // NewNetherWithRegistry constructs a Nether dimension generator using a specific BlockRegistry.
 func NewNetherWithRegistry(seed int64, reg world.BlockRegistry) *Nether {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &Nether{
 		seed:       seed,
 		noise3D:    noise.NewOctavePerlinFromSeed(seed^0x4e657468, 4, 2.0, 0.5), // "Neth"
@@ -64,6 +67,9 @@ func NewNetherWithRegistry(seed int64, reg world.BlockRegistry) *Nether {
 // GenerateChunk populates dual bedrock ceilings/floors, 3D Netherrack cavern density,
 // the Y=31 lava ocean, and authentic Nether biomes across the chunk column.
 func (n *Nether) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
+	if n == nil || c == nil {
+		return
+	}
 	originX := int(pos.X()) << 4
 	originZ := int(pos.Z()) << 4
 

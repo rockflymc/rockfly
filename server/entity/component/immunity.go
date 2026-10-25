@@ -1,6 +1,7 @@
 package component
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -24,7 +25,10 @@ func NewDamageImmunity() *DamageImmunity {
 // within its immunity frame, damage is only applied if damage > lastDamage.
 // If vulnerable, the effective damage to deal is returned along with vulnerable=true.
 func (d *DamageImmunity) Evaluate(damage float64, duration time.Duration) (effectiveDamage float64, vulnerable bool) {
-	if damage <= 0 {
+	if d == nil {
+		return damage, true
+	}
+	if damage <= 0 || math.IsNaN(damage) || math.IsInf(damage, 0) {
 		return 0, false
 	}
 
@@ -51,6 +55,9 @@ func (d *DamageImmunity) Evaluate(damage float64, duration time.Duration) (effec
 
 // Reset clears the immunity frame immediately.
 func (d *DamageImmunity) Reset() {
+	if d == nil {
+		return
+	}
 	d.mu.Lock()
 	d.immuneUntil = time.Time{}
 	d.lastDamage = 0
@@ -59,6 +66,9 @@ func (d *DamageImmunity) Reset() {
 
 // Immune returns whether the entity is currently within an immunity window.
 func (d *DamageImmunity) Immune() bool {
+	if d == nil {
+		return false
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return time.Now().Before(d.immuneUntil)
@@ -66,6 +76,9 @@ func (d *DamageImmunity) Immune() bool {
 
 // LastDamage returns the damage of the last hit within the current immunity frame.
 func (d *DamageImmunity) LastDamage() float64 {
+	if d == nil {
+		return 0
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.lastDamage

@@ -15,10 +15,14 @@ func ScaffoldPlugin(name, lang, targetDir string) error {
 	if name == "" {
 		return fmt.Errorf("plugin name cannot be empty")
 	}
+	if strings.ContainsAny(name, "/\\:*?\"<>|") {
+		return fmt.Errorf("plugin name %q contains invalid filesystem characters", name)
+	}
 
 	if targetDir == "" {
 		targetDir = name
 	}
+	targetDir = filepath.Clean(targetDir)
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", targetDir, err)

@@ -35,9 +35,9 @@ func StripANSI(s string) string {
 // It outputs ANSI color-formatted logs to stdout and clean, plain text logs to logs/latest.log.
 type Handler struct {
 	stdout     io.Writer
-	fileWriter io.Writer
+	fileWriter io.WriteCloser
 	level      slog.Level
-	mu         sync.Mutex
+	mu         *sync.Mutex
 	attrs      []slog.Attr
 	groups     []string
 }
@@ -62,7 +62,7 @@ func NewHandler(opts HandlerOptions) *Handler {
 		opts.LogFile = "latest.log"
 	}
 
-	var fileWriter io.Writer
+	var fileWriter io.WriteCloser
 	_ = os.MkdirAll(opts.LogsDir, 0755)
 	logPath := filepath.Join(opts.LogsDir, opts.LogFile)
 	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
@@ -73,6 +73,7 @@ func NewHandler(opts HandlerOptions) *Handler {
 		stdout:     opts.Stdout,
 		fileWriter: fileWriter,
 		level:      opts.Level,
+		mu:         &sync.Mutex{},
 	}
 }
 
@@ -132,6 +133,18 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
+// Close cleanly flushes and closes the underlying log file handle.
+func (h *Handler) Close() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.fileWriter != nil {
+		err := h.fileWriter.Close()
+		h.fileWriter = nil
+		return err
+	}
+	return nil
+}
+
 // WithAttrs returns a new Handler with the given attributes added.
 func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	h.mu.Lock()
@@ -145,6 +158,7 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		stdout:     h.stdout,
 		fileWriter: h.fileWriter,
 		level:      h.level,
+		mu:         h.mu,
 		attrs:      newAttrs,
 		groups:     h.groups,
 	}
@@ -163,6 +177,7 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		stdout:     h.stdout,
 		fileWriter: h.fileWriter,
 		level:      h.level,
+		mu:         h.mu,
 		attrs:      h.attrs,
 		groups:     newGroups,
 	}

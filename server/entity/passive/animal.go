@@ -163,6 +163,9 @@ type AnimalPanicGoal struct {
 
 // NewAnimalPanicGoal creates an AnimalPanicGoal.
 func NewAnimalPanicGoal(animal *Animal, speedBoost float64) *AnimalPanicGoal {
+	if speedBoost <= 0 || math.IsNaN(speedBoost) || math.IsInf(speedBoost, 0) {
+		speedBoost = 1.25
+	}
 	return &AnimalPanicGoal{
 		BaseGoal:   ai.NewBaseGoal(ai.ControlMove),
 		animal:     animal,
@@ -171,6 +174,9 @@ func NewAnimalPanicGoal(animal *Animal, speedBoost float64) *AnimalPanicGoal {
 }
 
 func (g *AnimalPanicGoal) CanUse() bool {
+	if g.animal == nil {
+		return false
+	}
 	return !g.animal.Dead() && g.animal.Panicking()
 }
 
@@ -187,6 +193,9 @@ func (g *AnimalPanicGoal) Start() {
 func (g *AnimalPanicGoal) Stop() {}
 
 func (g *AnimalPanicGoal) Tick() {
+	if g.animal == nil {
+		return
+	}
 	vel := g.animal.Velocity()
 	speed := g.animal.Speed() * g.speedBoost
 	vel[0] = g.escapeDir[0] * speed
@@ -225,7 +234,7 @@ func (g *AnimalTemptGoal) SetTargetPlayer(p ai.Mob) {
 }
 
 func (g *AnimalTemptGoal) CanUse() bool {
-	if g.animal.Dead() || g.animal.Panicking() || g.animal.InLove() {
+	if g.animal == nil || g.animal.Dead() || g.animal.Panicking() || g.animal.InLove() {
 		return false
 	}
 	if g.targetPlayer != nil && !g.targetPlayer.Dead() {
@@ -239,7 +248,7 @@ func (g *AnimalTemptGoal) CanUse() bool {
 }
 
 func (g *AnimalTemptGoal) CanContinueToUse() bool {
-	if g.animal.Dead() || g.animal.Panicking() || g.targetPlayer == nil || g.targetPlayer.Dead() {
+	if g.animal == nil || g.animal.Dead() || g.animal.Panicking() || g.targetPlayer == nil || g.targetPlayer.Dead() {
 		return false
 	}
 	dist := g.targetPlayer.Position().Sub(g.animal.Position()).Len()
@@ -253,7 +262,7 @@ func (g *AnimalTemptGoal) Stop() {
 }
 
 func (g *AnimalTemptGoal) Tick() {
-	if g.targetPlayer == nil {
+	if g.animal == nil || g.targetPlayer == nil {
 		return
 	}
 	diff := g.targetPlayer.Position().Sub(g.animal.Position())
@@ -270,8 +279,9 @@ func (g *AnimalTemptGoal) Tick() {
 
 	// Advance toward player until within comfortable reach (2.0 blocks)
 	vel := g.animal.Velocity()
-	if dist > 2.0 {
-		dir := mgl64.Vec3{diff[0], 0, diff[2]}.Normalize()
+	hLen := math.Hypot(diff[0], diff[2])
+	if dist > 2.0 && hLen > 0.001 {
+		dir := mgl64.Vec3{diff[0] / hLen, 0, diff[2] / hLen}
 		speed := g.animal.Speed()
 		vel[0] = dir[0] * speed
 		vel[2] = dir[2] * speed
@@ -311,7 +321,7 @@ func (g *AnimalBreedGoal) SetMate(m *Animal) {
 }
 
 func (g *AnimalBreedGoal) CanUse() bool {
-	if g.animal.Dead() || !g.animal.InLove() || g.animal.Age() != 0 {
+	if g.animal == nil || g.animal.Dead() || !g.animal.InLove() || g.animal.Age() != 0 {
 		return false
 	}
 	if g.mate != nil && !g.mate.Dead() && g.mate.InLove() && g.mate.Age() == 0 {
@@ -325,7 +335,7 @@ func (g *AnimalBreedGoal) CanUse() bool {
 }
 
 func (g *AnimalBreedGoal) CanContinueToUse() bool {
-	return g.mate != nil && !g.mate.Dead() && g.mate.InLove() && g.animal.InLove()
+	return g.animal != nil && g.mate != nil && !g.mate.Dead() && g.mate.InLove() && g.animal.InLove()
 }
 
 func (g *AnimalBreedGoal) Start() {}
@@ -335,7 +345,7 @@ func (g *AnimalBreedGoal) Stop() {
 }
 
 func (g *AnimalBreedGoal) Tick() {
-	if g.mate == nil {
+	if g.animal == nil || g.mate == nil {
 		return
 	}
 	diff := g.mate.Position().Sub(g.animal.Position())
@@ -343,12 +353,15 @@ func (g *AnimalBreedGoal) Tick() {
 
 	if dist > 1.5 {
 		// Move toward mate
-		dir := mgl64.Vec3{diff[0], 0, diff[2]}.Normalize()
-		speed := g.animal.Speed()
-		vel := g.animal.Velocity()
-		vel[0] = dir[0] * speed
-		vel[2] = dir[2] * speed
-		g.animal.SetVelocity(vel)
+		hLen := math.Hypot(diff[0], diff[2])
+		if hLen > 0.001 {
+			dir := mgl64.Vec3{diff[0] / hLen, 0, diff[2] / hLen}
+			speed := g.animal.Speed()
+			vel := g.animal.Velocity()
+			vel[0] = dir[0] * speed
+			vel[2] = dir[2] * speed
+			g.animal.SetVelocity(vel)
+		}
 	} else {
 		// Mate proximity reached: produce offspring!
 		midpoint := g.animal.Position().Add(g.mate.Position()).Mul(0.5)

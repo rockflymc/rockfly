@@ -2,6 +2,7 @@ package world
 
 import (
 	"context"
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -156,5 +157,39 @@ func BenchmarkParallelWorldTicker_TickConcurrent(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		ticker.TickSynchronousParallel()
+	}
+}
+
+func TestParallelWorldTicker_NilAndNaNSafety(t *testing.T) {
+	var ticker *ParallelWorldTicker
+	ticker.RegisterWorld("dummy", nil)
+	if _, ok := ticker.Stats("dummy"); ok {
+		t.Fatal("expected false on nil ticker Stats")
+	}
+	ticker.TickSynchronousParallel()
+	ticker.Close()
+	if ticker.TransferEntity(EntityHandoff{}) {
+		t.Fatal("expected false on nil ticker TransferEntity")
+	}
+
+	validTicker := NewParallelWorldTicker(16)
+	defer validTicker.Close()
+
+	var failedReason error
+	// Test NaN position
+	success := validTicker.TransferEntity(EntityHandoff{
+		Handle:  &EntityHandle{},
+		Source:  &World{},
+		Target:  &World{},
+		Pos:     mgl64.Vec3{0, 64, math.NaN()},
+		OnFail: func(err error) {
+			failedReason = err
+		},
+	})
+	if success {
+		t.Fatal("expected false on NaN position transfer")
+	}
+	if failedReason == nil {
+		t.Fatal("expected failedReason on NaN position transfer")
 	}
 }

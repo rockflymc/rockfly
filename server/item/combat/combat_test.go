@@ -138,6 +138,50 @@ func TestMace_SmashAttackScalingAndBounce(t *testing.T) {
 	}
 }
 
+func TestCombat_NilAndNaNSafety(t *testing.T) {
+	// 1. Mace NaN and Inf safety
+	mace := combat.Mace{DensityLevel: 300, WindBurstLevel: 20}
+	if mace.IsSmashAttack(math.NaN()) || mace.IsSmashAttack(math.Inf(1)) {
+		t.Fatalf("expected IsSmashAttack to return false for NaN/Inf fall distance")
+	}
+	nanDmg := mace.CalculateSmashDamage(math.NaN())
+	if nanDmg != 6.0 {
+		t.Fatalf("expected base damage 6.0 for NaN fall distance, got %f", nanDmg)
+	}
+	// Density clamped to 255, WindBurst clamped to 10
+	if mace.WindBurstBounceVelocity() != 4.8 {
+		t.Fatalf("expected clamped wind burst bounce 4.8, got %f", mace.WindBurstBounceVelocity())
+	}
+
+	// 2. Shield NaN & Arc safety
+	shield := combat.NewShield()
+	shield.Disable(-100) // negative duration ignored
+	if shield.Disabled() {
+		t.Fatalf("expected shield not disabled by negative duration")
+	}
+
+	nanAttacker := mgl64.Vec3{math.NaN(), 0, 1}
+	inArc := combat.InBlockingArc(nanAttacker, mgl64.Vec3{0, 0, 0}, 0)
+	if inArc {
+		t.Fatalf("expected InBlockingArc to return false on NaN coordinates")
+	}
+
+	b, rem, dis := shield.BlockDamage(math.NaN(), entity.AttackDamageSource{}, mgl64.Vec3{0, 0, 1}, mgl64.Vec3{0, 0, 0}, 0, false)
+	if b != 0 || rem != 0 || dis {
+		t.Fatalf("expected 0 damage on NaN block damage call")
+	}
+
+	// 3. Trident NaN safety
+	trident := combat.Trident{RiptideLevel: 20, LoyaltyLevel: 20, ChannelingLevel: 20}
+	nanImpulse := trident.RiptideImpulse(math.NaN(), 0)
+	if nanImpulse.Len() != 0 {
+		t.Fatalf("expected zero impulse on NaN yaw/pitch")
+	}
+	if trident.LoyaltyReturnSpeed() != 6.0 { // clamped to level 10 -> 0.6 * 10 = 6.0
+		t.Fatalf("expected loyalty return speed 6.0 (clamped), got %f", trident.LoyaltyReturnSpeed())
+	}
+}
+
 func BenchmarkMace_SmashCalculation(b *testing.B) {
 	mace := combat.Mace{DensityLevel: 5, WindBurstLevel: 3}
 	b.ResetTimer()

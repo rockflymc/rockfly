@@ -135,7 +135,7 @@ func (g *SpiderLeapAttackGoal) Leaping() bool {
 }
 
 func (g *SpiderLeapAttackGoal) CanUse() bool {
-	if g.spider.Dead() || g.holder == nil || g.cooldown > 0 {
+	if g.spider == nil || g.spider.Dead() || g.holder == nil || g.cooldown > 0 {
 		return false
 	}
 	target := g.holder.Target()
@@ -152,8 +152,11 @@ func (g *SpiderLeapAttackGoal) CanContinueToUse() bool {
 }
 
 func (g *SpiderLeapAttackGoal) Start() {
+	if g.spider == nil || g.holder == nil {
+		return
+	}
 	target := g.holder.Target()
-	if target == nil {
+	if target == nil || target.Dead() {
 		return
 	}
 

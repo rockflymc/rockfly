@@ -120,9 +120,18 @@ func (c BanIP) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 				host = p.Addr().String()
 			}
 			_ = player.DefaultBanManager().BanIP(host, reason, sourceName(src))
+			if parsed := net.ParseIP(host); parsed != nil {
+				host = parsed.String()
+			}
 			if c.srv != nil {
 				for pl := range c.srv.Players(tx) {
-					h, _, _ := net.SplitHostPort(pl.Addr().String())
+					h, _, err := net.SplitHostPort(pl.Addr().String())
+					if err != nil {
+						h = pl.Addr().String()
+					}
+					if parsed := net.ParseIP(h); parsed != nil {
+						h = parsed.String()
+					}
 					if h == host {
 						pl.Disconnect("IP-banned: " + reason)
 					}
@@ -160,9 +169,19 @@ func (c BanIPAddress) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		return
 	}
 
+	if parsed := net.ParseIP(ip); parsed != nil {
+		ip = parsed.String()
+	}
+
 	if c.srv != nil {
 		for pl := range c.srv.Players(tx) {
-			h, _, _ := net.SplitHostPort(pl.Addr().String())
+			h, _, err := net.SplitHostPort(pl.Addr().String())
+			if err != nil {
+				h = pl.Addr().String()
+			}
+			if parsed := net.ParseIP(h); parsed != nil {
+				h = parsed.String()
+			}
 			if h == ip {
 				pl.Disconnect("IP-banned: " + reason)
 			}

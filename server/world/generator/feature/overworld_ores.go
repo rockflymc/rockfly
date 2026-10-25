@@ -170,6 +170,9 @@ type OverworldOreFeature struct {
 
 // NewOverworldOreFeature constructs an OverworldOreFeature with default 1.18+ configs.
 func NewOverworldOreFeature(reg world.BlockRegistry) *OverworldOreFeature {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &OverworldOreFeature{
 		placer:  NewOrePlacerWithRegistry(reg),
 		configs: DefaultOverworldOres(reg),
@@ -178,6 +181,9 @@ func NewOverworldOreFeature(reg world.BlockRegistry) *OverworldOreFeature {
 
 // Populate scatters all Overworld ores deterministically for chunk coordinates (chunkX, chunkZ).
 func (f *OverworldOreFeature) Populate(c *chunk.Chunk, chunkX, chunkZ int, seed int64) {
+	if f == nil || c == nil {
+		return
+	}
 	// Deterministic chunk PRNG seeded with world seed + chunk coordinates
 	chunkSeed := uint64(seed) ^ (uint64(chunkX) * 0x4c1906) ^ (uint64(chunkZ) * 0x5ac0db)
 	r := rand.New(rand.NewPCG(chunkSeed, chunkSeed^0x9e3779b97f4a7c15))

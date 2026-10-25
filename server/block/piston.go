@@ -32,14 +32,20 @@ type Piston struct {
 
 // Extended returns whether the piston is currently physically extended with a piston arm in the world.
 func (p Piston) Extended(pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	headPos := pos.Side(p.Facing)
+	if headPos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	arm, ok := tx.Block(headPos).(PistonArm)
 	return ok && arm.Facing == p.Facing
 }
 
 // Extend pushes the blocks in front of the piston and places the extended piston arm.
 func (p Piston) Extend(pos cube.Pos, tx *world.Tx) bool {
-	if p.Extended(pos, tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) || p.Extended(pos, tx) {
 		return false
 	}
 	solver := NewPistonSolver(tx, pos, p.Facing, false)
@@ -47,6 +53,9 @@ func (p Piston) Extend(pos cube.Pos, tx *world.Tx) bool {
 		return false
 	}
 	headPos := pos.Side(p.Facing)
+	if headPos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	tx.SetBlock(headPos, PistonArm{Facing: p.Facing, Sticky: p.Sticky}, nil)
 	tx.PlaySound(pos.Vec3Centre(), sound.PowerOn{})
 	return true
@@ -54,11 +63,13 @@ func (p Piston) Extend(pos cube.Pos, tx *world.Tx) bool {
 
 // Retract removes the piston arm and, if sticky, pulls back the block in front of it and its adhesion network.
 func (p Piston) Retract(pos cube.Pos, tx *world.Tx) bool {
-	if !p.Extended(pos, tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) || !p.Extended(pos, tx) {
 		return false
 	}
 	headPos := pos.Side(p.Facing)
-	tx.SetBlock(headPos, Air{}, nil)
+	if !headPos.OutOfBounds(tx.Range()) {
+		tx.SetBlock(headPos, Air{}, nil)
+	}
 	if p.Sticky {
 		solver := NewPistonSolver(tx, pos, p.Facing, true)
 		solver.Solve()
@@ -80,6 +91,9 @@ func (p Piston) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 
 // NeighbourUpdateTick schedules an extension or retraction when redstone power status changes.
 func (p Piston) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	powered := tx.RedstonePower(pos) > 0
 	extended := p.Extended(pos, tx)
 	if powered != extended {
@@ -94,6 +108,9 @@ func (p Piston) RedstonePowerAction(pos cube.Pos, tx *world.Tx, _, _ int) {
 
 // ScheduledTick executes piston extension or retraction after a 1 redstone tick delay.
 func (p Piston) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	powered := tx.RedstonePower(pos) > 0
 	extended := p.Extended(pos, tx)
 	if powered && !extended {
@@ -106,9 +123,14 @@ func (p Piston) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 // BreakInfo ...
 func (p Piston) BreakInfo() BreakInfo {
 	return newBreakInfo(0.5, pickaxeHarvestable, pickaxeEffective, oneOf(p)).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		headPos := pos.Side(p.Facing)
-		if arm, ok := tx.Block(headPos).(PistonArm); ok && arm.Facing == p.Facing {
-			tx.SetBlock(headPos, Air{}, nil)
+		if !headPos.OutOfBounds(tx.Range()) {
+			if arm, ok := tx.Block(headPos).(PistonArm); ok && arm.Facing == p.Facing {
+				tx.SetBlock(headPos, Air{}, nil)
+			}
 		}
 	})
 }

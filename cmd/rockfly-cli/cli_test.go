@@ -83,3 +83,36 @@ func TestCLI_GoScaffoldWorkflow(t *testing.T) {
 	}
 	t.Logf("Go plugin check passed in %v", durCheck)
 }
+
+func TestCLI_SecuritySanitization(t *testing.T) {
+	// 1. Invalid plugin names with path traversal or invalid characters
+	badNames := []string{"../../escaped", "my/plugin", "plugin\\name", "test*plugin", ""}
+	for _, bad := range badNames {
+		if err := ScaffoldPlugin(bad, "ts", ""); err == nil {
+			t.Errorf("expected error scaffolding plugin with invalid name %q", bad)
+		}
+	}
+
+	// 2. Manifest with path traversal in 'main'
+	tmpDir, err := os.MkdirTemp("", "rockfly_cli_test_sec_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	badManifest := `name = "Malicious"
+version = "1.0.0"
+main = "../../../etc/passwd"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "plugin.toml"), []byte(badManifest), 0644); err != nil {
+		t.Fatalf("failed to write bad manifest: %v", err)
+	}
+
+	if _, err := CheckPlugin(tmpDir); err == nil {
+		t.Errorf("expected CheckPlugin to reject path traversal in manifest 'main'")
+	}
+
+	if _, _, err := BuildPlugin(tmpDir, ""); err == nil {
+		t.Errorf("expected BuildPlugin to reject path traversal in manifest 'main'")
+	}
+}

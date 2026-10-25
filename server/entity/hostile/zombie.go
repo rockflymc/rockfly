@@ -58,6 +58,9 @@ func (z *Zombie) Baby() bool {
 
 // SetBaby configures the baby variant state.
 func (z *Zombie) SetBaby(baby bool) {
+	if z == nil {
+		return
+	}
 	z.baby = baby
 	if baby {
 		z.SetSpeed(0.30)
@@ -68,6 +71,9 @@ func (z *Zombie) SetBaby(baby bool) {
 
 // Tick executes zombie autonomous logic, including daylight combustion and AI routines.
 func (z *Zombie) Tick(tx *world.Tx, current int64) {
+	if z == nil {
+		return
+	}
 	if !z.Dead() && !z.baby {
 		CheckDaylightBurning(z, z.LivingEntity, tx)
 	}

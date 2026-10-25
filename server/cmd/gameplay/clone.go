@@ -30,16 +30,27 @@ func (c Clone) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		return
 	}
 
+	if !isValidVec3(c.From) || !isValidVec3(c.To) || !isValidVec3(c.Destination) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	pos1 := cube.PosFromVec3(c.From)
 	pos2 := cube.PosFromVec3(c.To)
 	dest := cube.PosFromVec3(c.Destination)
 
+	r := tx.Range()
 	minX := min(pos1[0], pos2[0])
 	maxX := max(pos1[0], pos2[0])
-	minY := min(pos1[1], pos2[1])
-	maxY := max(pos1[1], pos2[1])
+	minY := max(min(pos1[1], pos2[1]), r.Min())
+	maxY := min(max(pos1[1], pos2[1]), r.Max()-1)
 	minZ := min(pos1[2], pos2[2])
 	maxZ := max(pos1[2], pos2[2])
+
+	if minY > maxY {
+		o.Errorf("Source height is completely outside world bounds [%d, %d]", r.Min(), r.Max()-1)
+		return
+	}
 
 	volume := (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1)
 	if volume > 32768 {
@@ -63,10 +74,14 @@ func (c Clone) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		}
 	}
 
+	count := 0
 	for _, entry := range entries {
 		targetPos := dest.Add(entry.offset)
-		tx.SetBlock(targetPos, entry.b, nil)
+		if !targetPos.OutOfBounds(r) {
+			tx.SetBlock(targetPos, entry.b, nil)
+			count++
+		}
 	}
 
-	o.Printf("Successfully cloned %d block(s)", len(entries))
+	o.Printf("Successfully cloned %d block(s)", count)
 }

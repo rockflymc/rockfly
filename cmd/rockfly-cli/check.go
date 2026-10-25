@@ -33,6 +33,9 @@ func CheckPlugin(pluginDir string) (time.Duration, error) {
 	if m.Main == "" {
 		return 0, fmt.Errorf("plugin manifest must declare a 'main' entry file")
 	}
+	if filepath.IsAbs(m.Main) || strings.Contains(m.Main, "..") {
+		return 0, fmt.Errorf("plugin manifest 'main' must be a relative path inside the plugin directory (got %q)", m.Main)
+	}
 
 	mainPath := filepath.Join(pluginDir, m.Main)
 	if _, err := os.Stat(mainPath); err != nil {

@@ -13,6 +13,11 @@ import (
 )
 
 func TestSplineKnotsAndExtrapolation(t *testing.T) {
+	var nilSpline *terrain.Spline
+	if nilSpline.Compute(10) != 0 {
+		t.Fatalf("expected 0 from nil spline")
+	}
+
 	s := terrain.NewSpline(
 		terrain.SplinePoint{Location: 0.0, Value: 10.0, Slope: 2.0},
 		terrain.SplinePoint{Location: 10.0, Value: 30.0, Slope: 2.0},
@@ -65,6 +70,9 @@ func TestDensityEvaluator(t *testing.T) {
 func TestOverworldGenerateChunk(t *testing.T) {
 	world.DefaultBlockRegistry.Finalize()
 	gen := terrain.NewOverworld(9999)
+	// Nil chunk should safely no-op
+	gen.GenerateChunk(world.ChunkPos{0, 0}, nil)
+
 	c := chunk.New(world.DefaultBlockRegistry, cube.Range{-64, 319})
 
 	pos := world.ChunkPos{0, 0}

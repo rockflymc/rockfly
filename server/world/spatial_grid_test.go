@@ -1,6 +1,7 @@
 package world
 
 import (
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -145,6 +146,61 @@ func TestSpatialGrid_WorldEntitiesWithin(t *testing.T) {
 		}
 	})
 	_ = ent2
+}
+
+func TestSpatialGrid_NegativeCoordinatesAndHardening(t *testing.T) {
+	// Negative coordinates floor check
+	coord := CellCoordFromVec3(mgl64.Vec3{-0.5, 64, -0.5})
+	if coord.X != -1 || coord.Z != -1 {
+		t.Fatalf("expected CellCoord{-1, -1} for (-0.5, -0.5), got %+v", coord)
+	}
+
+	// NaN and Inf sanitization
+	coordNaN := CellCoordFromVec3(mgl64.Vec3{math.NaN(), 64, math.Inf(1)})
+	if coordNaN.X != 0 || coordNaN.Z != 0 {
+		t.Fatalf("expected CellCoord{0, 0} for (NaN, Inf), got %+v", coordNaN)
+	}
+
+	// Nil receiver safety
+	var nilGrid *SpatialGrid
+	nilGrid.Insert(nil, mgl64.Vec3{0, 0, 0})
+	nilGrid.Remove(nil)
+	nilGrid.Move(nil, mgl64.Vec3{0, 0, 0})
+	nilGrid.Query(cube.Box(0, 0, 0, 1, 1, 1), func(h *EntityHandle) bool { return true })
+	nilGrid.QueryRadius(mgl64.Vec3{0, 0, 0}, 10, func(h *EntityHandle) bool { return true })
+	if nilGrid.CellEntities(CellCoord{0, 0}) != nil || nilGrid.EntityCount() != 0 || nilGrid.CellCount() != 0 {
+		t.Fatalf("nil grid should return 0/nil")
+	}
+	nilGrid.Clear()
+
+	// Zero-value struct safety without NewSpatialGrid
+	zeroGrid := &SpatialGrid{}
+	e := EntitySpawnOpts{ID: uuid.New(), Position: mgl64.Vec3{5, 64, 5}}.New(dummyEntityType{name: "minecraft:sheep"}, testEntityConfig{})
+	zeroGrid.Insert(e, e.data.Pos)
+	if zeroGrid.EntityCount() != 1 {
+		t.Fatalf("expected 1 entity in zero-value grid, got %d", zeroGrid.EntityCount())
+	}
+	zeroGrid.Move(e, mgl64.Vec3{100, 64, 100})
+	zeroGrid.Remove(e)
+	if zeroGrid.EntityCount() != 0 {
+		t.Fatalf("expected 0 entities after removal from zero-value grid")
+	}
+
+	// QueryRadius with NaN / Inf / Negative radius
+	grid := NewSpatialGrid()
+	grid.Insert(e, e.data.Pos)
+	grid.QueryRadius(mgl64.Vec3{math.NaN(), 0, 0}, 10, func(h *EntityHandle) bool {
+		t.Fatalf("should not invoke callback on NaN center")
+		return true
+	})
+	grid.QueryRadius(mgl64.Vec3{0, 0, 0}, -5, func(h *EntityHandle) bool {
+		t.Fatalf("should not invoke callback on negative radius")
+		return true
+	})
+	grid.QueryRadius(mgl64.Vec3{0, 0, 0}, math.NaN(), func(h *EntityHandle) bool {
+		t.Fatalf("should not invoke callback on NaN radius")
+		return true
+	})
 }
 
 func BenchmarkSpatialGrid_Query_5000Entities(b *testing.B) {

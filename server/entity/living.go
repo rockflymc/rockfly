@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -104,108 +105,196 @@ func NewLivingEntity(handle *world.EntityHandle, maxHealth float64) *LivingEntit
 	return l
 }
 
+// EntitySnapshot is an immutable snapshot of a living entity's spatial and physiological state.
+// Background workers (such as async pathfinding or goal selectors) consume EntitySnapshot value
+// structs captured at tick start to prevent race conditions without holding locks.
+type EntitySnapshot struct {
+	Pos       mgl64.Vec3
+	BBox      cube.BBox
+	Health    float64
+	MaxHealth float64
+	OnGround  bool
+}
+
 // Health returns the current health of the entity.
 func (l *LivingEntity) Health() float64 {
+	if l == nil || l.health == nil {
+		return 0
+	}
 	return l.health.Health()
 }
 
 // MaxHealth returns the maximum health of the entity.
 func (l *LivingEntity) MaxHealth() float64 {
+	if l == nil || l.health == nil {
+		return 0
+	}
 	return l.health.MaxHealth()
 }
 
 // SetMaxHealth updates the maximum health of the entity.
 func (l *LivingEntity) SetMaxHealth(v float64) {
-	l.health.SetMaxHealth(v)
+	if l != nil && l.health != nil {
+		l.health.SetMaxHealth(v)
+	}
 }
 
 // SetHealth sets current health directly within [0, MaxHealth].
 func (l *LivingEntity) SetHealth(v float64) {
-	l.health.SetHealth(v)
+	if l != nil && l.health != nil {
+		l.health.SetHealth(v)
+	}
 }
 
 // Dead returns whether the entity is dead.
 func (l *LivingEntity) Dead() bool {
+	if l == nil || l.health == nil {
+		return true
+	}
 	return l.health.Dead()
+}
+
+// Snapshot returns an immutable snapshot of the entity state for worker goroutines.
+func (l *LivingEntity) Snapshot() EntitySnapshot {
+	if l == nil {
+		return EntitySnapshot{}
+	}
+	l.mu.RLock()
+	pos := l.pos
+	l.mu.RUnlock()
+
+	fallDist := 0.0
+	if l.fall != nil {
+		fallDist = l.fall.FallDistance()
+	}
+
+	return EntitySnapshot{
+		Pos:       pos,
+		BBox:      cube.Box(-0.3, 0, -0.3, 0.3, 1.8, 0.3).Translate(pos),
+		Health:    l.Health(),
+		MaxHealth: l.MaxHealth(),
+		OnGround:  fallDist == 0,
+	}
 }
 
 // Absorption returns the current absorption health points.
 func (l *LivingEntity) Absorption() float64 {
+	if l == nil || l.absorption == nil {
+		return 0
+	}
 	return l.absorption.Absorption()
 }
 
 // SetAbsorption sets the absorption health points.
 func (l *LivingEntity) SetAbsorption(v float64) {
-	l.absorption.SetAbsorption(v)
+	if l != nil && l.absorption != nil {
+		l.absorption.SetAbsorption(v)
+	}
 }
 
 // FallDistance returns accumulated fall distance.
 func (l *LivingEntity) FallDistance() float64 {
+	if l == nil || l.fall == nil {
+		return 0
+	}
 	return l.fall.FallDistance()
 }
 
 // SetFallDistance directly updates fall distance.
 func (l *LivingEntity) SetFallDistance(v float64) {
-	l.fall.SetFallDistance(v)
+	if l != nil && l.fall != nil {
+		l.fall.SetFallDistance(v)
+	}
 }
 
 // AirSupply returns current air supply underwater.
 func (l *LivingEntity) AirSupply() time.Duration {
+	if l == nil || l.air == nil {
+		return 0
+	}
 	return l.air.AirSupply()
 }
 
 // MaxAirSupply returns maximum air supply duration.
 func (l *LivingEntity) MaxAirSupply() time.Duration {
+	if l == nil || l.air == nil {
+		return 0
+	}
 	return l.air.MaxAirSupply()
 }
 
 // SetAirSupply sets the remaining underwater air supply.
 func (l *LivingEntity) SetAirSupply(d time.Duration) {
-	l.air.SetAirSupply(d)
+	if l != nil && l.air != nil {
+		l.air.SetAirSupply(d)
+	}
 }
 
 // OnFireDuration returns how long the entity will remain on fire.
 func (l *LivingEntity) OnFireDuration() time.Duration {
+	if l == nil || l.fire == nil {
+		return 0
+	}
 	return l.fire.OnFireDuration()
 }
 
 // SetOnFire sets the duration the entity should burn.
 func (l *LivingEntity) SetOnFire(d time.Duration) {
-	l.fire.SetOnFire(d)
+	if l != nil && l.fire != nil {
+		l.fire.SetOnFire(d)
+	}
 }
 
 // Extinguish puts out any active fire.
 func (l *LivingEntity) Extinguish() {
-	l.fire.Extinguish()
+	if l != nil && l.fire != nil {
+		l.fire.Extinguish()
+	}
 }
 
 // Armour returns the entity's armor inventory.
 func (l *LivingEntity) Armour() *inventory.Armour {
+	if l == nil {
+		return nil
+	}
 	return l.armour
 }
 
 // Effects returns all active potion effects.
 func (l *LivingEntity) Effects() []effect.Effect {
+	if l == nil || l.effects == nil {
+		return nil
+	}
 	return l.effects.Effects()
 }
 
 // AddEffect adds or upgrades a status effect.
 func (l *LivingEntity) AddEffect(e effect.Effect) {
-	l.effects.Add(e, l)
+	if l != nil && l.effects != nil {
+		l.effects.Add(e, l)
+	}
 }
 
 // RemoveEffect removes a status effect.
 func (l *LivingEntity) RemoveEffect(e effect.Type) {
-	l.effects.Remove(e, l)
+	if l != nil && l.effects != nil {
+		l.effects.Remove(e, l)
+	}
 }
 
 // Effect checks if an effect is active.
 func (l *LivingEntity) Effect(e effect.Type) (effect.Effect, bool) {
+	if l == nil || l.effects == nil {
+		return effect.Effect{}, false
+	}
 	return l.effects.Effect(e)
 }
 
 // Speed returns the movement speed attribute.
 func (l *LivingEntity) Speed() float64 {
+	if l == nil {
+		return 0
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.speed
@@ -213,6 +302,9 @@ func (l *LivingEntity) Speed() float64 {
 
 // SetSpeed updates movement speed.
 func (l *LivingEntity) SetSpeed(s float64) {
+	if l == nil || math.IsNaN(s) || math.IsInf(s, 0) || s < 0 {
+		return
+	}
 	l.mu.Lock()
 	l.speed = s
 	l.mu.Unlock()
@@ -220,6 +312,9 @@ func (l *LivingEntity) SetSpeed(s float64) {
 
 // Velocity returns current entity velocity.
 func (l *LivingEntity) Velocity() mgl64.Vec3 {
+	if l == nil {
+		return mgl64.Vec3{}
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.vel
@@ -227,6 +322,9 @@ func (l *LivingEntity) Velocity() mgl64.Vec3 {
 
 // SetVelocity updates current entity velocity.
 func (l *LivingEntity) SetVelocity(v mgl64.Vec3) {
+	if l == nil || math.IsNaN(v[0]) || math.IsNaN(v[1]) || math.IsNaN(v[2]) {
+		return
+	}
 	l.mu.Lock()
 	l.vel = v
 	l.mu.Unlock()
@@ -234,6 +332,9 @@ func (l *LivingEntity) SetVelocity(v mgl64.Vec3) {
 
 // Position returns current 3D position in the world.
 func (l *LivingEntity) Position() mgl64.Vec3 {
+	if l == nil {
+		return mgl64.Vec3{}
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.pos
@@ -241,6 +342,9 @@ func (l *LivingEntity) Position() mgl64.Vec3 {
 
 // SetPosition updates current 3D position.
 func (l *LivingEntity) SetPosition(p mgl64.Vec3) {
+	if l == nil || math.IsNaN(p[0]) || math.IsNaN(p[1]) || math.IsNaN(p[2]) {
+		return
+	}
 	l.mu.Lock()
 	l.pos = p
 	l.mu.Unlock()
@@ -248,6 +352,9 @@ func (l *LivingEntity) SetPosition(p mgl64.Vec3) {
 
 // Rotation returns yaw and pitch angles.
 func (l *LivingEntity) Rotation() cube.Rotation {
+	if l == nil {
+		return cube.Rotation{}
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.rot
@@ -255,6 +362,9 @@ func (l *LivingEntity) Rotation() cube.Rotation {
 
 // SetRotation updates yaw and pitch angles.
 func (l *LivingEntity) SetRotation(r cube.Rotation) {
+	if l == nil {
+		return
+	}
 	l.mu.Lock()
 	l.rot = r
 	l.mu.Unlock()
@@ -262,6 +372,9 @@ func (l *LivingEntity) SetRotation(r cube.Rotation) {
 
 // NameTag returns the visible display name.
 func (l *LivingEntity) NameTag() string {
+	if l == nil {
+		return ""
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.nameTag
@@ -269,6 +382,9 @@ func (l *LivingEntity) NameTag() string {
 
 // SetNameTag updates the visible display name.
 func (l *LivingEntity) SetNameTag(name string) {
+	if l == nil {
+		return
+	}
 	l.mu.Lock()
 	l.nameTag = name
 	l.mu.Unlock()
@@ -276,6 +392,9 @@ func (l *LivingEntity) SetNameTag(name string) {
 
 // AlwaysShowNameTag returns whether the name tag is rendered through walls.
 func (l *LivingEntity) AlwaysShowNameTag() bool {
+	if l == nil {
+		return false
+	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.alwaysShowNameTag
@@ -283,6 +402,9 @@ func (l *LivingEntity) AlwaysShowNameTag() bool {
 
 // SetAlwaysShowNameTag updates whether the name tag is rendered through walls.
 func (l *LivingEntity) SetAlwaysShowNameTag(show bool) {
+	if l == nil {
+		return
+	}
 	l.mu.Lock()
 	l.alwaysShowNameTag = show
 	l.mu.Unlock()
@@ -290,12 +412,15 @@ func (l *LivingEntity) SetAlwaysShowNameTag(show bool) {
 
 // H returns the entity handle.
 func (l *LivingEntity) H() *world.EntityHandle {
+	if l == nil {
+		return nil
+	}
 	return l.handle
 }
 
 // Close closes the entity handle and cleans up.
 func (l *LivingEntity) Close() error {
-	if l.handle != nil {
+	if l != nil && l.handle != nil {
 		return l.handle.Close()
 	}
 	return nil
@@ -303,6 +428,16 @@ func (l *LivingEntity) Close() error {
 
 // KnockBack imparts knockback velocity away from src, taking into account armor knockback resistance.
 func (l *LivingEntity) KnockBack(src mgl64.Vec3, force, height float64) {
+	if l == nil || l.Dead() {
+		return
+	}
+	if math.IsNaN(force) || math.IsInf(force, 0) || math.IsNaN(height) || math.IsInf(height, 0) {
+		return
+	}
+	if math.IsNaN(src[0]) || math.IsNaN(src[1]) || math.IsNaN(src[2]) {
+		return
+	}
+
 	l.mu.Lock()
 	velocity := l.pos.Sub(src)
 	velocity[1] = 0
@@ -312,9 +447,12 @@ func (l *LivingEntity) KnockBack(src mgl64.Vec3, force, height float64) {
 	}
 	velocity[1] = height
 
-	resistance := l.armour.KnockBackResistance()
-	if resistance > 1 {
-		resistance = 1
+	resistance := 0.0
+	if l.armour != nil {
+		resistance = l.armour.KnockBackResistance()
+		if resistance > 1 {
+			resistance = 1
+		}
 	}
 	l.vel = velocity.Mul(1.0 - resistance)
 	l.mu.Unlock()
@@ -322,7 +460,10 @@ func (l *LivingEntity) KnockBack(src mgl64.Vec3, force, height float64) {
 
 // Heal heals the entity, clamped to MaxHealth. Returns actual health restored.
 func (l *LivingEntity) Heal(health float64, _ world.HealingSource) float64 {
-	if l.Dead() || health <= 0 {
+	if l == nil || l.Dead() || health <= 0 || math.IsNaN(health) || math.IsInf(health, 0) {
+		return 0
+	}
+	if l.health == nil {
 		return 0
 	}
 	return l.health.AddHealth(health)
@@ -330,13 +471,18 @@ func (l *LivingEntity) Heal(health float64, _ world.HealingSource) float64 {
 
 // ResetImmunity clears any active damage immunity window.
 func (l *LivingEntity) ResetImmunity() {
-	l.immunity.Reset()
+	if l != nil && l.immunity != nil {
+		l.immunity.Reset()
+	}
 }
 
 // Hurt inflicts damage according to Bedrock damage immunity frames, armor mitigation,
 // potion resistance, and absorption buffers.
 func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bool) {
-	if l.Dead() || damage < 0 {
+	if l == nil || l.Dead() || damage <= 0 || math.IsNaN(damage) || math.IsInf(damage, 0) {
+		return 0, false
+	}
+	if l.health == nil {
 		return 0, false
 	}
 
@@ -348,13 +494,20 @@ func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bo
 	}
 
 	// Damage immunity frame evaluation (0.5s window with higher damage overwrite)
-	effectiveDamage, vulnerable := l.immunity.Evaluate(damage, time.Second/2)
-	if !vulnerable {
-		return 0, false
+	var effectiveDamage float64
+	var vulnerable bool
+	if l.immunity != nil {
+		effectiveDamage, vulnerable = l.immunity.Evaluate(damage, time.Second/2)
+		if !vulnerable {
+			return 0, false
+		}
+	} else {
+		effectiveDamage = damage
+		vulnerable = true
 	}
 
 	// Armor mitigation
-	if src.ReducedByArmour() {
+	if src.ReducedByArmour() && l.armour != nil {
 		effectiveDamage -= l.armour.DamageReduction(effectiveDamage, src)
 	}
 
@@ -368,7 +521,9 @@ func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bo
 	}
 
 	// Absorption absorption
-	effectiveDamage, _ = l.absorption.Absorb(effectiveDamage)
+	if l.absorption != nil {
+		effectiveDamage, _ = l.absorption.Absorb(effectiveDamage)
+	}
 
 	// Apply remaining damage to health
 	applied := l.health.AddHealth(-effectiveDamage)
@@ -378,13 +533,20 @@ func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bo
 
 // Tick advances entity effects, combustion, and drowning each game tick.
 func (l *LivingEntity) Tick(tx *world.Tx, current int64) {
+	if l == nil || l.Dead() {
+		return
+	}
 	l.tx = tx
 
 	// Progress status effects
-	l.effects.Tick(l, tx)
+	if l.effects != nil {
+		l.effects.Tick(l, tx)
+	}
 
 	// Progress fire ticks (deal 1 fire damage every 20 ticks)
-	if burning, dmg := l.fire.Tick(); burning && dmg > 0 {
-		l.Hurt(dmg, AttackDamageSource{})
+	if l.fire != nil {
+		if burning, dmg := l.fire.Tick(); burning && dmg > 0 {
+			l.Hurt(dmg, AttackDamageSource{})
+		}
 	}
 }

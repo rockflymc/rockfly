@@ -48,8 +48,17 @@ func NewAsyncWriter(db *DB) *AsyncWriter {
 
 // QueueWrite serializes the given column and adds its entries to the active write batch.
 func (w *AsyncWriter) QueueWrite(pos world.ChunkPos, dim world.Dimension, col *chunk.Column) error {
+	if w == nil {
+		return fmt.Errorf("async writer is nil")
+	}
 	if w.closed.Load() {
 		return fmt.Errorf("async writer is closed")
+	}
+	if col == nil || col.Chunk == nil {
+		return fmt.Errorf("column or chunk is nil")
+	}
+	if w.db == nil {
+		return fmt.Errorf("database is nil")
 	}
 
 	k := dbKey{pos: pos, dim: dim}
@@ -119,8 +128,12 @@ func (w *AsyncWriter) flushActive() {
 	w.mu.Unlock()
 
 	// Write batch to LevelDB synchronously on this background worker thread.
-	if err := w.db.ldb.Write(batch, nil); err != nil {
-		w.db.conf.Log.Error("async writer: write batch failed: " + err.Error())
+	if w.db != nil && w.db.ldb != nil {
+		if err := w.db.ldb.Write(batch, nil); err != nil {
+			if w.db.conf.Log != nil {
+				w.db.conf.Log.Error("async writer: write batch failed: " + err.Error())
+			}
+		}
 	}
 
 	w.mu.Lock()
@@ -137,6 +150,9 @@ func (w *AsyncWriter) flushActive() {
 
 // Flush synchronously flushes all queued writes to disk and blocks until complete.
 func (w *AsyncWriter) Flush() error {
+	if w == nil {
+		return nil
+	}
 	w.mu.Lock()
 	for w.activeCount > 0 || w.flushingCount > 0 {
 		select {
@@ -151,6 +167,9 @@ func (w *AsyncWriter) Flush() error {
 
 // Close gracefully closes the writer after flushing all pending data.
 func (w *AsyncWriter) Close() error {
+	if w == nil {
+		return nil
+	}
 	if w.closed.CompareAndSwap(false, true) {
 		select {
 		case w.flushTrigger <- struct{}{}:
@@ -174,6 +193,7 @@ type AsyncReader struct {
 	db      *DB
 	tasks   chan ReadTask
 	wg      sync.WaitGroup
+	mu      sync.RWMutex
 	closed  atomic.Bool
 	workers int
 }
@@ -199,36 +219,64 @@ func NewAsyncReader(db *DB, workers int) *AsyncReader {
 func (r *AsyncReader) workerLoop() {
 	defer r.wg.Done()
 	for task := range r.tasks {
-		col, err := r.db.LoadColumn(task.Pos, task.Dim)
-		if task.Callback != nil {
-			task.Callback(col, err)
-		}
+		r.runTask(task)
+	}
+}
+
+func (r *AsyncReader) runTask(task ReadTask) {
+	defer func() {
+		_ = recover()
+	}()
+	var col *chunk.Column
+	var err error
+	if r.db != nil {
+		col, err = r.db.LoadColumn(task.Pos, task.Dim)
+	} else {
+		err = fmt.Errorf("database is nil")
+	}
+	if task.Callback != nil {
+		task.Callback(col, err)
 	}
 }
 
 // QueueRead submits an asynchronous chunk read request to the background worker pool.
 func (r *AsyncReader) QueueRead(pos world.ChunkPos, dim world.Dimension, callback func(*chunk.Column, error)) bool {
-	if r.closed.Load() {
+	if r == nil {
+		if callback != nil {
+			callback(nil, fmt.Errorf("reader is nil"))
+		}
 		return false
 	}
+
 	task := ReadTask{Pos: pos, Dim: dim, Callback: callback}
+
+	r.mu.RLock()
+	if r.closed.Load() {
+		r.mu.RUnlock()
+		return false
+	}
+
 	select {
 	case r.tasks <- task:
+		r.mu.RUnlock()
 		return true
 	default:
+		r.mu.RUnlock()
 		// Queue full: perform load synchronously as fallback.
-		col, err := r.db.LoadColumn(pos, dim)
-		if callback != nil {
-			callback(col, err)
-		}
+		r.runTask(task)
 		return true
 	}
 }
 
 // Close stops all reader worker goroutines.
 func (r *AsyncReader) Close() {
+	if r == nil {
+		return
+	}
 	if r.closed.CompareAndSwap(false, true) {
+		r.mu.Lock()
 		close(r.tasks)
+		r.mu.Unlock()
 		r.wg.Wait()
 	}
 }

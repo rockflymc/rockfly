@@ -81,13 +81,19 @@ func NewEARTracker(conf EARConfig) *EARTracker {
 
 // Config returns the active EAR configuration.
 func (ear *EARTracker) Config() EARConfig {
+	if ear == nil {
+		return DefaultEARConfig()
+	}
 	return ear.conf
 }
 
 // ShouldTick determines if an entity should tick on the given world tick.
 // Returns shouldTick (bool) and isInactiveTick (bool).
 func (ear *EARTracker) ShouldTick(e Entity, handle *EntityHandle, players []mgl64.Vec3, currentTick int64) (shouldTick bool, isInactiveTick bool) {
-	if !ear.conf.Enabled {
+	if ear == nil || !ear.conf.Enabled {
+		return true, false
+	}
+	if handle == nil || handle.Type() == nil {
 		return true, false
 	}
 

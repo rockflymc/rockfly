@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -183,6 +184,45 @@ func TestGoalSelector_HurtByTarget(t *testing.T) {
 	selector.Tick()
 	if mob.Target() != attacker {
 		t.Fatalf("expected retaliation target to become attacker")
+	}
+}
+
+func TestGoalSelector_NilAndZeroVectorSafety(t *testing.T) {
+	// 1. Nil selector methods should not panic
+	var nilSelector *GoalSelector
+	nilSelector.AddGoal(1, nil)
+	nilSelector.RemoveGoal(nil)
+	nilSelector.Tick()
+	if goals := nilSelector.RunningGoals(); goals != nil {
+		t.Fatalf("expected nil running goals for nil selector")
+	}
+
+	// 2. Real selector with nil goal should not panic
+	sel := NewGoalSelector()
+	sel.AddGoal(1, nil)
+	sel.RemoveGoal(nil)
+	sel.Tick()
+
+	// 3. Zero vector distance in MeleeAttackGoal (mob and target at identical position)
+	mob := newMockMob()
+	target := newMockMob()
+	mob.SetPosition(mgl64.Vec3{10, 64, 10})
+	target.SetPosition(mgl64.Vec3{10, 64, 10})
+	mob.SetTarget(target)
+
+	melee := NewMeleeAttackGoal(mob, mob, 0.5, 2.0, nil)
+	melee.Tick()
+
+	// Verify velocity is not NaN
+	vel := mob.Velocity()
+	if math.IsNaN(vel[0]) || math.IsNaN(vel[1]) || math.IsNaN(vel[2]) {
+		t.Fatalf("velocity became NaN on zero distance target pursuit: %v", vel)
+	}
+
+	// 4. PanicGoal with invalid speed modifier
+	badPanic := NewPanicGoal(mob, math.NaN(), nil)
+	if badPanic.speedMod != 1.25 {
+		t.Fatalf("expected NaN speedMod to default to 1.25, got %v", badPanic.speedMod)
 	}
 }
 

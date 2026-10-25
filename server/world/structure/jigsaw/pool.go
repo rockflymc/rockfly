@@ -32,7 +32,7 @@ func NewPool(name, fallback string, pieces ...WeightedPiece) *Pool {
 
 // Select deterministically picks a piece from the pool based on a pseudo-random integer.
 func (p *Pool) Select(randVal int) *Piece {
-	if len(p.Pieces) == 0 {
+	if p == nil || len(p.Pieces) == 0 {
 		return nil
 	}
 	if p.totalWeight <= 0 {

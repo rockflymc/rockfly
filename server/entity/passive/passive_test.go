@@ -1,6 +1,7 @@
 package passive_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block"
@@ -253,6 +254,36 @@ func TestWolf_TamingAndSitting(t *testing.T) {
 	flags := meta[protocol.EntityDataKeyFlags].(int64)
 	if flags&(1<<protocol.EntityDataFlagSitting) == 0 {
 		t.Fatalf("expected EntityDataFlagSitting in metadata")
+	}
+}
+
+func TestAnimal_NilAndNaNSafety(t *testing.T) {
+	// 1. Nil animal panic goal
+	var a *passive.Animal
+	panicGoal := passive.NewAnimalPanicGoal(a, 1.5)
+	if panicGoal.CanUse() {
+		t.Fatalf("expected CanUse to be false for nil animal")
+	}
+	panicGoal.Tick()
+
+	// 2. Zero vector distance tempting
+	cow := passive.NewCow(nil, false)
+	player := newMockPlayer(mgl64.Vec3{10, 64, 10})
+	cow.SetPosition(mgl64.Vec3{10, 64, 10})
+
+	tempt := passive.NewAnimalTemptGoal(cow.Animal, 10.0, nil, nil)
+	tempt.SetTargetPlayer(player)
+	tempt.Tick()
+
+	vel := cow.Velocity()
+	if math.IsNaN(vel[0]) || math.IsNaN(vel[1]) || math.IsNaN(vel[2]) {
+		t.Fatalf("cow velocity became NaN during tempt at zero distance: %v", vel)
+	}
+
+	// 3. Invalid speedBoost
+	badPanic := passive.NewAnimalPanicGoal(cow.Animal, math.NaN())
+	if badPanic == nil {
+		t.Fatalf("expected non-nil panic goal")
 	}
 }
 

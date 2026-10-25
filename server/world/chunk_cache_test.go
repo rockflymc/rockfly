@@ -103,3 +103,35 @@ func BenchmarkChunkCache_GetPut(b *testing.B) {
 		_, _ = cache.Get(pos)
 	}
 }
+
+func TestChunkCache_NilAndZeroSafety(t *testing.T) {
+	var nilCache *ChunkCache
+	if _, ok := nilCache.Get(ChunkPos{0, 0}); ok {
+		t.Fatal("expected false on nil Get")
+	}
+	nilCache.Put(ChunkPos{0, 0}, nil)
+	nilCache.Remove(ChunkPos{0, 0})
+	nilCache.Clear()
+	if nilCache.Len() != 0 {
+		t.Fatal("expected 0 on nil Len")
+	}
+
+	var zeroCache ChunkCache
+	if _, ok := zeroCache.Get(ChunkPos{0, 0}); ok {
+		t.Fatal("expected false on zero Get")
+	}
+	br := DefaultBlockRegistry
+	br.Finalize()
+	r := cube.Range{-64, 319}
+	zeroCache.Put(ChunkPos{1, 1}, &Column{Chunk: chunk.New(br, r)})
+	if zeroCache.Len() != 1 {
+		t.Fatalf("expected len 1, got %d", zeroCache.Len())
+	}
+	if _, ok := zeroCache.Get(ChunkPos{1, 1}); !ok {
+		t.Fatal("expected ok on zeroCache Get after Put")
+	}
+	zeroCache.Clear()
+	if zeroCache.Len() != 0 {
+		t.Fatal("expected 0 after Clear")
+	}
+}

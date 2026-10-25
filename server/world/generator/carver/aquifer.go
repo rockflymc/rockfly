@@ -27,6 +27,9 @@ func NewAquiferSampler(seed int64, air, water, lava uint32) *AquiferSampler {
 
 // FluidAt returns the block runtime ID occupying a carved void at (x, y, z).
 func (a *AquiferSampler) FluidAt(x, y, z int) uint32 {
+	if a == nil {
+		return 0
+	}
 	// Deep cavern void below Y = -54 fills with subterranean lava sea
 	if y <= -54 {
 		return a.lava
