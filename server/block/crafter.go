@@ -361,11 +361,9 @@ func matchRecipe(r recipe.Recipe, grid []item.Stack) ([]int, bool) {
 							if !st.Empty() {
 								contributing = append(contributing, slot)
 							}
-						} else {
-							if !st.Empty() {
-								matched = false
-								break
-							}
+						} else if !st.Empty() {
+							matched = false
+							break
 						}
 					}
 					if !matched {
@@ -470,9 +468,9 @@ func (c Crafter) EncodeNBT() map[string]any {
 		c.Orientation, c.Crafting, c.Triggered, c.DisabledSlots, c.CustomName = orient, crafting, triggered, disabled, customName
 	}
 	m := map[string]any{
-		"Items":         nbtconv.InvToNBT(c.inventory),
+		"Items":          nbtconv.InvToNBT(c.inventory),
 		"disabled_slots": int32(c.DisabledSlots),
-		"id":            "Crafter",
+		"id":             "Crafter",
 	}
 	if c.CustomName != "" {
 		m["CustomName"] = c.CustomName

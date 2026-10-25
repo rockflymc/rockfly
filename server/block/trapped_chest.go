@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	_ world.Block                  = TrappedChest{}
-	_ world.Item                   = TrappedChest{}
-	_ world.ScheduledTicker        = TrappedChest{}
-	_ world.RedstonePowerSource    = TrappedChest{}
+	_ world.Block                     = TrappedChest{}
+	_ world.Item                      = TrappedChest{}
+	_ world.ScheduledTicker           = TrappedChest{}
+	_ world.RedstonePowerSource       = TrappedChest{}
 	_ world.RedstoneStrongPowerSource = TrappedChest{}
-	_ world.RedstoneWeakBlockPowerer = TrappedChest{}
-	_ world.NBTer                  = TrappedChest{}
-	_ Container                    = TrappedChest{}
+	_ world.RedstoneWeakBlockPowerer  = TrappedChest{}
+	_ world.NBTer                     = TrappedChest{}
+	_ Container                       = TrappedChest{}
 )
 
 // TrappedChest is a redstone-emitting variant of the regular chest. It emits a redstone signal
