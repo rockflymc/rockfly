@@ -192,15 +192,16 @@ func (g *BowAttackGoal) Tick() {
 	vel := g.mob.Velocity()
 	speed := g.mob.Speed()
 
-	if dist > 12.0 {
+	switch {
+	case dist > 12.0:
 		// Advance toward target
 		vel[0] = dirXZ[0] * speed
 		vel[2] = dirXZ[2] * speed
-	} else if dist < 6.0 {
+	case dist < 6.0:
 		// Retreat backwards
 		vel[0] = -dirXZ[0] * speed
 		vel[2] = -dirXZ[2] * speed
-	} else {
+	default:
 		// Strafe sideways while holding ground
 		vel[0] = perp[0] * speed * 0.8
 		vel[2] = perp[2] * speed * 0.8

@@ -94,7 +94,7 @@ func (h *Hostile) Hurt(damage float64, src world.DamageSource) (float64, bool) {
 
 // TickHostile coordinates target selection, AI goal execution, and living entity updates.
 func (h *Hostile) TickHostile(tx *world.Tx, current int64) {
-	h.LivingEntity.Tick(tx, current)
+	h.Tick(tx, current)
 
 	if !h.Dead() {
 		h.targetSelector.Tick()
