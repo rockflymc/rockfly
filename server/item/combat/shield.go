@@ -50,8 +50,14 @@ func (s Shield) DisableTicks() int32 {
 
 // Disable imposes a cooldown disabling the shield for the specified duration.
 func (s Shield) Disable(duration time.Duration) {
+	if duration <= 0 {
+		return
+	}
 	s.ensureInit()
 	ticks := int32(duration.Milliseconds() / 50)
+	if ticks <= 0 {
+		ticks = 1
+	}
 	s.disableTicks.Store(ticks)
 }
 
@@ -64,6 +70,11 @@ func (s Shield) Tick() {
 
 // InBlockingArc verifies whether an incoming attack originates within the defender's 180-degree frontal blocking arc.
 func InBlockingArc(attackerPos, defenderPos mgl64.Vec3, defenderYaw float64) bool {
+	if math.IsNaN(attackerPos[0]) || math.IsNaN(attackerPos[1]) || math.IsNaN(attackerPos[2]) ||
+		math.IsNaN(defenderPos[0]) || math.IsNaN(defenderPos[1]) || math.IsNaN(defenderPos[2]) ||
+		math.IsNaN(defenderYaw) || math.IsInf(defenderYaw, 0) {
+		return false
+	}
 	diff := attackerPos.Sub(defenderPos)
 	diffXZ := mgl64.Vec3{diff[0], 0, diff[2]}
 	if diffXZ.Len() < 0.001 {
@@ -82,6 +93,9 @@ func InBlockingArc(attackerPos, defenderPos mgl64.Vec3, defenderYaw float64) boo
 // BlockDamage evaluates damage negation. If attacker is in frontal arc and shield is not disabled,
 // blocks 100% of damage and checks for axe disable.
 func (s Shield) BlockDamage(damage float64, src world.DamageSource, attackerPos, defenderPos mgl64.Vec3, defenderYaw float64, isAxe bool) (blocked float64, remaining float64, disabled bool) {
+	if math.IsNaN(damage) || math.IsInf(damage, 0) || damage <= 0 {
+		return 0, 0, false
+	}
 	if s.Disabled() {
 		return 0, damage, false
 	}
