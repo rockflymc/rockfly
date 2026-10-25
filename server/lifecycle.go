@@ -13,6 +13,7 @@ import (
 
 	"github.com/df-mc/dragonfly/server/cmd/admin"
 	"github.com/df-mc/dragonfly/server/console"
+	"github.com/df-mc/dragonfly/server/gui"
 	"github.com/df-mc/dragonfly/server/player"
 	"github.com/pelletier/go-toml"
 )
@@ -64,20 +65,26 @@ type LifecycleOptions struct {
 	Logger *slog.Logger
 	// AutoAcceptEULA specifies if the EULA should be automatically accepted in non-interactive mode.
 	AutoAcceptEULA bool
+	// EnableDashboard specifies whether the embedded web administration dashboard is started.
+	EnableDashboard bool
+	// DashboardAddr is the TCP address for the web dashboard (default "127.0.0.1:8080").
+	DashboardAddr string
 }
 
 // DefaultLifecycleOptions returns standard production lifecycle options.
 func DefaultLifecycleOptions() LifecycleOptions {
 	return LifecycleOptions{
-		BaseDir:        ".",
-		ConfigPath:     "config.toml",
-		PropertiesPath: "server.properties",
-		EULAPath:       "eula.txt",
-		PluginsDir:     "plugins",
-		WorldsDir:      "world",
-		LogsDir:        "logs",
-		Logger:         slog.Default(),
-		AutoAcceptEULA: true,
+		BaseDir:         ".",
+		ConfigPath:      "config.toml",
+		PropertiesPath:  "server.properties",
+		EULAPath:        "eula.txt",
+		PluginsDir:      "plugins",
+		WorldsDir:       "world",
+		LogsDir:         "logs",
+		Logger:          slog.Default(),
+		AutoAcceptEULA:  true,
+		EnableDashboard: true,
+		DashboardAddr:   "127.0.0.1:8080",
 	}
 }
 
@@ -270,6 +277,18 @@ func Run(opts ...LifecycleOptions) error {
 	repl := console.NewREPL(os.Stdin, logger, ".rockfly_history")
 	repl.Start(srv)
 	defer repl.Close()
+
+	if opt.EnableDashboard {
+		dash := gui.NewDashboardServer(srv, gui.DashboardOptions{
+			Addr: opt.DashboardAddr,
+		})
+		if err := dash.Start(); err != nil {
+			logger.Warn("Failed to start web dashboard", "error", err)
+		} else {
+			logger.Info("Web Administration Dashboard listening", "url", "http://"+dash.Addr())
+			defer dash.Close()
+		}
+	}
 
 	srv.Listen()
 	for p := range srv.Accept() {
