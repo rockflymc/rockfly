@@ -44,6 +44,36 @@ func TestTransformPos(t *testing.T) {
 	}
 }
 
+func TestTemplateBoundsAndNilSafety(t *testing.T) {
+	// Negative dimensions
+	negTmpl := structure.NewTemplate(cube.Pos{-1, 0, 5})
+	if negTmpl.Dimensions() != (cube.Pos{0, 0, 0}) {
+		t.Fatalf("expected 0 dimensions for negative size, got %v", negTmpl.Dimensions())
+	}
+
+	// Oversized dimensions (OOM defense)
+	bombTmpl := structure.NewTemplate(cube.Pos{10000, 10000, 10000})
+	if bombTmpl.Dimensions() != (cube.Pos{0, 0, 0}) {
+		t.Fatalf("expected 0 dimensions for oversized bomb template, got %v", bombTmpl.Dimensions())
+	}
+
+	// Nil template operations
+	var nilTmpl *structure.Template
+	if nilTmpl.Dimensions() != (cube.Pos{0, 0, 0}) {
+		t.Fatalf("expected 0 dimensions on nil template")
+	}
+	if b, ok := nilTmpl.Block(cube.Pos{0, 0, 0}); ok || b != nil {
+		t.Fatalf("expected (nil, false) on nil template block lookup")
+	}
+	nilTmpl.SetBlock(cube.Pos{0, 0, 0}, block.Stone{})
+	nilTmpl.Build(nil, cube.Pos{0, 0, 0}, structure.Rotation0, structure.MirrorNone)
+	nilTmpl.BuildChunk(nil, world.ChunkPos{0, 0}, cube.Pos{0, 0, 0}, structure.Rotation0, structure.MirrorNone, nil)
+
+	if _, err := structure.ToMCStructure(nil); err == nil {
+		t.Fatalf("expected error serializing nil template to mcstructure")
+	}
+}
+
 func TestMCStructureRoundTrip(t *testing.T) {
 	world.DefaultBlockRegistry.Finalize()
 	reg := world.DefaultBlockRegistry
