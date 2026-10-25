@@ -19,8 +19,8 @@ func registerSummon() {
 
 // Summon spawns an entity in the world.
 type Summon struct {
-	Entity   string                    `cmd:"entity"`
-	Position cmd.Optional[mgl64.Vec3]  `cmd:"position"`
+	Entity   string                   `cmd:"entity"`
+	Position cmd.Optional[mgl64.Vec3] `cmd:"position"`
 }
 
 func (c Summon) Allow(src cmd.Source) bool {

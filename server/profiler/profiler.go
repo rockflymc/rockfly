@@ -14,14 +14,14 @@ import (
 
 // Subsystem identifiers for profiling.
 const (
-	SubsystemWorldTick        = "WorldTick"
-	SubsystemEntityTick       = "EntityTick"
-	SubsystemEntityPathfind   = "EntityPathfinding"
-	SubsystemChunkGen         = "ChunkGen"
-	SubsystemRedstone         = "Redstone"
-	SubsystemEventBus         = "EventBus"
-	SubsystemNetwork          = "Network"
-	SubsystemDiskIO           = "DiskIO"
+	SubsystemWorldTick      = "WorldTick"
+	SubsystemEntityTick     = "EntityTick"
+	SubsystemEntityPathfind = "EntityPathfinding"
+	SubsystemChunkGen       = "ChunkGen"
+	SubsystemRedstone       = "Redstone"
+	SubsystemEventBus       = "EventBus"
+	SubsystemNetwork        = "Network"
+	SubsystemDiskIO         = "DiskIO"
 )
 
 // MetricSnapshot represents cumulative performance metrics for a specific subsystem.
@@ -97,10 +97,10 @@ type ProfilerReport struct {
 
 // Profiler is a Spark/Timings-grade performance tracker.
 type Profiler struct {
-	mu         sync.RWMutex
-	startTime  time.Time
-	trackers   map[string]*SubsystemTracker
-	tickCount  atomic.Int64
+	mu           sync.RWMutex
+	startTime    time.Time
+	trackers     map[string]*SubsystemTracker
+	tickCount    atomic.Int64
 	lastTickTime atomic.Int64 // UnixNano
 }
 
@@ -205,21 +205,21 @@ func (p *Profiler) FormatText() string {
 	var sb strings.Builder
 
 	sb.WriteString("=== Rockfly Spark / Timings Profiler Report ===\n")
-	sb.WriteString(fmt.Sprintf("Uptime: %s | Goroutines: %d\n", r.Uptime.Round(time.Second), r.Goroutines))
-	sb.WriteString(fmt.Sprintf("TPS: %.2f (1m), %.2f (5m), %.2f (15m)\n", r.TPS1m, r.TPS5m, r.TPS15m))
-	sb.WriteString(fmt.Sprintf("Memory: %.2f MB / %.2f MB (HeapAlloc / HeapSys) | GC: %d collections (%.2f ms pause total)\n",
-		r.HeapAllocMB, r.HeapSysMB, r.NumGC, r.GCPauseMs))
+	fmt.Fprintf(&sb, "Uptime: %s | Goroutines: %d\n", r.Uptime.Round(time.Second), r.Goroutines)
+	fmt.Fprintf(&sb, "TPS: %.2f (1m), %.2f (5m), %.2f (15m)\n", r.TPS1m, r.TPS5m, r.TPS15m)
+	fmt.Fprintf(&sb, "Memory: %.2f MB / %.2f MB (HeapAlloc / HeapSys) | GC: %d collections (%.2f ms pause total)\n",
+		r.HeapAllocMB, r.HeapSysMB, r.NumGC, r.GCPauseMs)
 	sb.WriteString("-----------------------------------------------\n")
-	sb.WriteString(fmt.Sprintf("%-20s %-8s %-12s %-12s %-12s\n", "Subsystem", "Count", "Avg", "Max", "Total"))
+	fmt.Fprintf(&sb, "%-20s %-8s %-12s %-12s %-12s\n", "Subsystem", "Count", "Avg", "Max", "Total")
 
 	for _, s := range r.Subsystems {
-		sb.WriteString(fmt.Sprintf("%-20s %-8d %-12s %-12s %-12s\n",
+		fmt.Fprintf(&sb, "%-20s %-8d %-12s %-12s %-12s\n",
 			s.Name,
 			s.Count,
 			s.AvgDuration.Round(time.Microsecond),
 			s.MaxDuration.Round(time.Microsecond),
 			s.TotalDuration.Round(time.Millisecond),
-		))
+		)
 	}
 	sb.WriteString("===============================================\n")
 
