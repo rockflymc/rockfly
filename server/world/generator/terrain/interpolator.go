@@ -11,6 +11,9 @@ type CellGrid struct {
 
 // SampleGrid samples the 5x97x5 bounding corner points for a chunk at chunk coordinates (chunkX, chunkZ).
 func (d *DensityEvaluator) SampleGrid(chunkX, chunkZ int, grid *CellGrid) {
+	if d == nil || grid == nil {
+		return
+	}
 	originX := chunkX << 4
 	originZ := chunkZ << 4
 
@@ -28,6 +31,9 @@ func (d *DensityEvaluator) SampleGrid(chunkX, chunkZ int, grid *CellGrid) {
 
 // InterpolateChunk populates chunk blocks using trilinear interpolation across cell corners.
 func InterpolateChunk(c *chunk.Chunk, grid *CellGrid, stone, deepslate, bedrock, water uint32) {
+	if c == nil || grid == nil {
+		return
+	}
 	for cx := range 4 {
 		for cz := range 4 {
 			for cy := range 96 {
