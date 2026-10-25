@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	_ world.Block                  = Repeater{}
-	_ world.Item                   = Repeater{}
-	_ world.ScheduledTicker        = Repeater{}
-	_ world.NeighbourUpdateTicker  = Repeater{}
-	_ world.RedstonePowerSource    = Repeater{}
+	_ world.Block                     = Repeater{}
+	_ world.Item                      = Repeater{}
+	_ world.ScheduledTicker           = Repeater{}
+	_ world.NeighbourUpdateTicker     = Repeater{}
+	_ world.RedstonePowerSource       = Repeater{}
 	_ world.RedstoneStrongPowerSource = Repeater{}
-	_ world.RedstoneWeakBlockPowerer = Repeater{}
+	_ world.RedstoneWeakBlockPowerer  = Repeater{}
 )
 
 // Repeater is a redstone component that functions as a diode, signal repeater, delay gate, and locking latch.
