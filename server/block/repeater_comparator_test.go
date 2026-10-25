@@ -264,6 +264,50 @@ func TestComparator_ContainerReading(t *testing.T) {
 	}
 }
 
+// TestRepeaterComparator_NilAndBoundarySafety verifies defensive nil handling and bounds clamping.
+func TestRepeaterComparator_NilAndBoundarySafety(t *testing.T) {
+	// 1. Container signal nil safety
+	if sig := block.CalculateContainerSignal(nil); sig != 0 {
+		t.Fatalf("expected 0 for nil container, got %d", sig)
+	}
+
+	// 2. Container signal with overfilled / corrupted items
+	inv := inventory.New(1, nil)
+	_ = inv.SetItem(0, item.NewStack(block.Cobblestone{}, 1000))
+	if sig := block.CalculateContainerSignal(inv); sig != 15 {
+		t.Fatalf("expected clamped signal 15 for overfilled container, got %d", sig)
+	}
+
+	// 3. Repeater nil Tx safety
+	rep := block.Repeater{Facing: cube.North, Delay: 1}
+	if rep.Activate(cube.Pos{}, cube.FaceUp, nil, nil, nil) {
+		t.Fatalf("expected false on nil Tx in Activate")
+	}
+	rep.NeighbourUpdateTick(cube.Pos{}, cube.Pos{}, nil)
+	rep.ScheduledTick(cube.Pos{}, nil, nil)
+	if rep.SideLocked(cube.Pos{}, nil) {
+		t.Fatalf("expected false on nil Tx in SideLocked")
+	}
+
+	// 4. Comparator nil Tx safety
+	comp := block.Comparator{Facing: cube.North}
+	if comp.Activate(cube.Pos{}, cube.FaceUp, nil, nil, nil) {
+		t.Fatalf("expected false on nil Tx in Activate")
+	}
+	comp.NeighbourUpdateTick(cube.Pos{}, cube.Pos{}, nil)
+	comp.ScheduledTick(cube.Pos{}, nil, nil)
+
+	// 5. Comparator NBT decoding clamps
+	decoded := comp.DecodeNBT(map[string]any{"OutputSignal": int32(50)}).(block.Comparator)
+	if decoded.OutputSignal != 15 || !decoded.Powered {
+		t.Fatalf("expected clamped signal 15 and powered, got %d, %v", decoded.OutputSignal, decoded.Powered)
+	}
+	decodedNeg := comp.DecodeNBT(map[string]any{"OutputSignal": int32(-10)}).(block.Comparator)
+	if decodedNeg.OutputSignal != 0 || decodedNeg.Powered {
+		t.Fatalf("expected clamped signal 0 and unpowered, got %d, %v", decodedNeg.OutputSignal, decodedNeg.Powered)
+	}
+}
+
 // BenchmarkRepeater_DiodeEvaluation measures repeater diode evaluation performance.
 func BenchmarkRepeater_DiodeEvaluation(b *testing.B) {
 	r := block.Repeater{Facing: cube.North, Delay: 1, Powered: true}
