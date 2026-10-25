@@ -55,20 +55,25 @@ func NewAStar(conf AStarConfig) *AStar {
 // Returns a slice of cube.Pos waypoints starting at the step after start and ending at target
 // (or the closest reachable node if target is unreachable).
 func (a *AStar) FindPath(start, target cube.Pos, provider BlockProvider) []cube.Pos {
-	if start == target {
+	if a == nil || provider == nil || start == target {
 		return nil
 	}
+	if start[1] < -64 || start[1] > 320 || target[1] < -64 || target[1] > 320 {
+		return nil
+	}
+
+	allocated := make([]*PathNode, 0, 128)
+	defer func() {
+		releaseNodes(allocated)
+	}()
 
 	openQueue := make(nodeQueue, 0, 128)
 	openSet := make(map[cube.Pos]*PathNode)
 	closedSet := make(map[cube.Pos]bool)
 
-	startNode := &PathNode{
-		Pos: start,
-		G:   0,
-		H:   distance3D(start, target),
-	}
-	startNode.F = startNode.G + startNode.H
+	startNode := acquireNode(start, 0, distance3D(start, target), nil)
+	allocated = append(allocated, startNode)
+
 	openQueue.pushNode(startNode)
 	openSet[start] = startNode
 
@@ -106,13 +111,8 @@ func (a *AStar) FindPath(start, target cube.Pos, provider BlockProvider) []cube.
 
 			if !inOpen {
 				h := distance3D(next.pos, target)
-				neighborNode := &PathNode{
-					Pos:    next.pos,
-					G:      tentativeG,
-					H:      h,
-					F:      tentativeG + h,
-					Parent: current,
-				}
+				neighborNode := acquireNode(next.pos, tentativeG, h, current)
+				allocated = append(allocated, neighborNode)
 				openQueue.pushNode(neighborNode)
 				openSet[next.pos] = neighborNode
 			} else if tentativeG < existing.G {

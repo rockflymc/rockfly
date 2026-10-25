@@ -1,6 +1,7 @@
 package pathing
 
 import (
+	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 // PathRequest holds an asynchronous pathfinding task submitted from the game thread.
 type PathRequest struct {
 	Start, Target mgl64.Vec3
+	EntityBBox    cube.BBox
 	Provider      BlockProvider
 	Callback      func(path *Path)
 }
@@ -48,7 +50,7 @@ func NewNavigator(workers int, conf AStarConfig) *Navigator {
 // Submit non-blockingly enqueues a pathfinding query to the background worker pool.
 // Returns true if successfully queued, or false if the navigator is closed or queue is saturated.
 func (n *Navigator) Submit(req PathRequest) bool {
-	if n.closed.Load() {
+	if n == nil || n.closed.Load() {
 		return false
 	}
 	select {
@@ -62,6 +64,16 @@ func (n *Navigator) Submit(req PathRequest) bool {
 
 // FindPathSync computes a path synchronously for tests or urgent calculations.
 func (n *Navigator) FindPathSync(start, target mgl64.Vec3, provider BlockProvider) *Path {
+	if n == nil || n.astar == nil || provider == nil {
+		return nil
+	}
+	if math.IsNaN(start.X()) || math.IsNaN(start.Y()) || math.IsNaN(start.Z()) ||
+		math.IsNaN(target.X()) || math.IsNaN(target.Y()) || math.IsNaN(target.Z()) ||
+		math.IsInf(start.X(), 0) || math.IsInf(start.Y(), 0) || math.IsInf(start.Z(), 0) ||
+		math.IsInf(target.X(), 0) || math.IsInf(target.Y(), 0) || math.IsInf(target.Z(), 0) {
+		return nil
+	}
+
 	startPos := cube.PosFromVec3(start)
 	targetPos := cube.PosFromVec3(target)
 
@@ -82,15 +94,23 @@ func (n *Navigator) workerLoop() {
 	defer n.wg.Done()
 
 	for req := range n.queue {
-		path := n.FindPathSync(req.Start, req.Target, req.Provider)
-		if req.Callback != nil {
-			req.Callback(path)
-		}
+		func() {
+			defer func() {
+				_ = recover()
+			}()
+			path := n.FindPathSync(req.Start, req.Target, req.Provider)
+			if req.Callback != nil {
+				req.Callback(path)
+			}
+		}()
 	}
 }
 
 // Close gracefully terminates all background pathfinding workers.
 func (n *Navigator) Close() error {
+	if n == nil {
+		return nil
+	}
 	if n.closed.CompareAndSwap(false, true) {
 		close(n.queue)
 		n.wg.Wait()

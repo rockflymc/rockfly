@@ -2,6 +2,7 @@ package pathing
 
 import (
 	"container/heap"
+	"sync"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
 )
@@ -15,6 +16,30 @@ type PathNode struct {
 	Parent *PathNode // Backtracking pointer to reconstruct the final route
 
 	index int // Internal index in priority queue min-heap
+}
+
+var nodePool = sync.Pool{
+	New: func() any {
+		return &PathNode{}
+	},
+}
+
+func acquireNode(pos cube.Pos, g, h float64, parent *PathNode) *PathNode {
+	n := nodePool.Get().(*PathNode)
+	n.Pos = pos
+	n.G = g
+	n.H = h
+	n.F = g + h
+	n.Parent = parent
+	n.index = 0
+	return n
+}
+
+func releaseNodes(nodes []*PathNode) {
+	for _, n := range nodes {
+		*n = PathNode{}
+		nodePool.Put(n)
+	}
 }
 
 // nodeQueue implements container/heap.Interface for prioritizing lowest F cost nodes.
