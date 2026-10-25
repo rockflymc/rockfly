@@ -100,3 +100,30 @@ func TestRateLimitPerSecond(t *testing.T) {
 		t.Errorf("expected rate limit message")
 	}
 }
+
+func TestPruneStaleAndIPNormalization(t *testing.T) {
+	filter := NewFilter(FilterOptions{
+		ConnectionThrottle:  10 * time.Millisecond,
+		MaxConnectionsPerIP: 2,
+		RateLimitPerSecond:  10,
+	})
+
+	// Test IPv6 uncompressed vs compressed matches same host
+	addr1 := dummyAddr{addr: "[2001:0db8:0000:0000:0000:0000:0000:0001]:12345"}
+	addr2 := dummyAddr{addr: "[2001:db8::1]:54321"}
+
+	if allowed, _ := filter.Allow(addr1); !allowed {
+		t.Fatalf("first connection should be allowed")
+	}
+
+	// Should be throttled because addr1 and addr2 canonicalize to the same IP
+	if allowed, _ := filter.Allow(addr2); allowed {
+		t.Errorf("expected second connection from same IPv6 host to be throttled")
+	}
+
+	// Test pruneStale
+	filter.pruneStale(time.Now().Add(2 * time.Hour))
+	if len(filter.lastConnect) != 0 {
+		t.Errorf("expected lastConnect to be pruned, got %d entries", len(filter.lastConnect))
+	}
+}
