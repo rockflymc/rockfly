@@ -111,7 +111,7 @@ func (c *Creeper) ExplosionRadius() float64 {
 
 // Explode detonates the creeper, inflicting radial explosion damage to nearby entities.
 func (c *Creeper) Explode(tx *world.Tx) {
-	if !c.exploded.CompareAndSwap(false, true) {
+	if c == nil || !c.exploded.CompareAndSwap(false, true) {
 		return
 	}
 	radius := c.ExplosionRadius()
@@ -126,6 +126,11 @@ func (c *Creeper) Explode(tx *world.Tx) {
 			dist := e.Position().Sub(pos).Len()
 			if dist <= radius {
 				factor := 1.0 - (dist / radius)
+				if factor < 0 {
+					factor = 0
+				} else if factor > 1 {
+					factor = 1
+				}
 				maxDamage := 43.0
 				if c.charged {
 					maxDamage = 85.0
@@ -209,7 +214,7 @@ func NewCreeperSwellGoal(creeper *Creeper) *CreeperSwellGoal {
 }
 
 func (g *CreeperSwellGoal) CanUse() bool {
-	if g.creeper.Dead() || g.creeper.Exploded() {
+	if g.creeper == nil || g.creeper.Dead() || g.creeper.Exploded() {
 		return false
 	}
 	if g.creeper.Ignited() {
@@ -224,16 +229,21 @@ func (g *CreeperSwellGoal) CanContinueToUse() bool {
 }
 
 func (g *CreeperSwellGoal) Start() {
-	g.creeper.SetSwellDirection(1)
+	if g.creeper != nil {
+		g.creeper.SetSwellDirection(1)
+	}
 }
 
 func (g *CreeperSwellGoal) Stop() {
-	if !g.creeper.Ignited() {
+	if g.creeper != nil && !g.creeper.Ignited() {
 		g.creeper.SetSwellDirection(-1)
 	}
 }
 
 func (g *CreeperSwellGoal) Tick() {
+	if g.creeper == nil {
+		return
+	}
 	if g.creeper.Ignited() {
 		g.creeper.SetSwellDirection(1)
 		return

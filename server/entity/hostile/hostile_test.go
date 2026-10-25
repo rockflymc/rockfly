@@ -1,6 +1,7 @@
 package hostile_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
@@ -238,6 +239,44 @@ func TestEnderman_StareDetectionAndProjectileDodge(t *testing.T) {
 	// Teleport moved the Enderman
 	if enderman.Position() == initialPos {
 		t.Logf("Enderman teleported from %v to %v", initialPos, enderman.Position())
+	}
+}
+
+func TestHostile_NilAndNaNSafety(t *testing.T) {
+	// 1. Hostile nil checks
+	var h *hostile.Hostile
+	if dist := h.DistanceTo(mgl64.Vec3{0, 0, 0}); dist != 0 {
+		t.Fatalf("expected 0 distance for nil hostile")
+	}
+	h.LookAt(mgl64.Vec3{0, 0, 0})
+
+	// 2. Creeper nil explode
+	var c *hostile.Creeper
+	c.Explode(nil)
+
+	// 3. Skeleton zero horizontal distance aiming
+	skeleton := hostile.NewSkeleton(nil)
+	skeleton.SetPosition(mgl64.Vec3{5, 64, 5})
+	target := newMockTarget(mgl64.Vec3{5, 68, 5}) // Directly above
+	skeleton.SetTarget(target)
+	skeleton.BowGoal().Start()
+	skeleton.BowGoal().Tick()
+
+	vel := skeleton.Velocity()
+	if math.IsNaN(vel[0]) || math.IsNaN(vel[1]) || math.IsNaN(vel[2]) {
+		t.Fatalf("skeleton velocity became NaN when target is directly above: %v", vel)
+	}
+
+	// 4. Enderman NaN teleport and stare
+	enderman := hostile.NewEnderman(nil)
+	if enderman.CheckPlayerStare(mgl64.Vec3{0, 0, 0}, cube.Rotation{math.NaN(), math.NaN()}) {
+		t.Fatalf("expected NaN rotation stare to return false")
+	}
+	if enderman.Teleport(nil, mgl64.Vec3{math.NaN(), 100, 0}) {
+		t.Fatalf("expected NaN teleport coordinate to be rejected")
+	}
+	if enderman.Teleport(nil, mgl64.Vec3{0, -100, 0}) {
+		t.Fatalf("expected out-of-bounds Y teleport coordinate to be rejected")
 	}
 }
 

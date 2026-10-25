@@ -104,12 +104,21 @@ func (h *Hostile) TickHostile(tx *world.Tx, current int64) {
 
 // DistanceTo returns Euclidean distance to another entity or position.
 func (h *Hostile) DistanceTo(targetPos mgl64.Vec3) float64 {
+	if h == nil {
+		return 0
+	}
 	return h.Position().Sub(targetPos).Len()
 }
 
 // LookAt rotates yaw and pitch to face targetPos.
 func (h *Hostile) LookAt(targetPos mgl64.Vec3) {
+	if h == nil {
+		return
+	}
 	diff := targetPos.Sub(h.Position())
+	if diff.Len() < 0.001 {
+		return
+	}
 	horizontalDist := diff[0]*diff[0] + diff[2]*diff[2]
 	yaw := float64(0)
 	if horizontalDist > 0.0001 {
@@ -122,7 +131,7 @@ func (h *Hostile) LookAt(targetPos mgl64.Vec3) {
 // CheckDaylightBurning evaluates if the mob should ignite from direct sunlight.
 // Returns true if ignition occurred.
 func CheckDaylightBurning(mob ai.Mob, l *entity.LivingEntity, tx *world.Tx) bool {
-	if tx == nil || tx.World() == nil || mob.Dead() {
+	if mob == nil || l == nil || tx == nil || tx.World() == nil || mob.Dead() {
 		return false
 	}
 	// Check world time: daytime is [0, 12000) ticks
@@ -131,6 +140,10 @@ func CheckDaylightBurning(mob ai.Mob, l *entity.LivingEntity, tx *world.Tx) bool
 		return false
 	}
 	pos := cube.PosFromVec3(mob.Position())
+	r := tx.World().Range()
+	if pos.Y() < r.Min() || pos.Y() >= r.Max() {
+		return false
+	}
 	if tx.RainingAt(pos) {
 		return false
 	}
@@ -138,12 +151,9 @@ func CheckDaylightBurning(mob ai.Mob, l *entity.LivingEntity, tx *world.Tx) bool
 	if pos.Y() < highest {
 		return false
 	}
-	if l != nil && !l.Armour().Helmet().Empty() {
+	if !l.Armour().Helmet().Empty() {
 		return false
 	}
-	if l != nil {
-		l.SetOnFire(8 * time.Second)
-		return true
-	}
-	return false
+	l.SetOnFire(8 * time.Second)
+	return true
 }
