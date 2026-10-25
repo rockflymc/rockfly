@@ -61,8 +61,19 @@ func NewMovementValidator(conf MovementValidationConfig) *MovementValidator {
 // Validate checks whether movement from oldPos to newPos is physically permissible.
 // Returns valid = true if movement passes checks, or valid = false with a reason describing the violation.
 func (v *MovementValidator) Validate(c Controllable, tx *world.Tx, oldPos, newPos mgl64.Vec3) (bool, string) {
-	if !v.conf.Enabled {
+	if v == nil || !v.conf.Enabled {
 		return true, ""
+	}
+	if c == nil {
+		return true, ""
+	}
+
+	// 0. Coordinate Integrity Check: Reject NaN / Infinite positions immediately
+	if math.IsNaN(newPos[0]) || math.IsNaN(newPos[1]) || math.IsNaN(newPos[2]) ||
+		math.IsInf(newPos[0], 0) || math.IsInf(newPos[1], 0) || math.IsInf(newPos[2], 0) ||
+		math.IsNaN(oldPos[0]) || math.IsNaN(oldPos[1]) || math.IsNaN(oldPos[2]) ||
+		math.IsInf(oldPos[0], 0) || math.IsInf(oldPos[1], 0) || math.IsInf(oldPos[2], 0) {
+		return false, "invalid coordinates: position contains NaN or Inf"
 	}
 
 	// 1. Spectator mode bypasses all collision and speed restrictions
@@ -111,6 +122,10 @@ func (v *MovementValidator) Validate(c Controllable, tx *world.Tx, oldPos, newPo
 		v.mu.Lock()
 		defer v.mu.Unlock()
 
+		if v.airTicks == nil {
+			v.airTicks = make(map[uuid.UUID]int)
+		}
+
 		// Check if player is standing on solid ground or liquid
 		belowPos := cube.PosFromVec3(newPos.Sub(mgl64.Vec3{0, 0.5, 0}))
 		var onGround bool
@@ -138,12 +153,20 @@ func (v *MovementValidator) Validate(c Controllable, tx *world.Tx, oldPos, newPo
 
 // Reconcile performs authoritative rubber-banding by snapping the client back to validPos.
 func (v *MovementValidator) Reconcile(s *Session, c Controllable, validPos mgl64.Vec3) {
+	if s == nil || c == nil {
+		return
+	}
 	s.ViewEntityTeleport(c, validPos)
 }
 
 // Clear cleans up tracked state for a disconnected player.
 func (v *MovementValidator) Clear(id uuid.UUID) {
+	if v == nil {
+		return
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	delete(v.airTicks, id)
+	if v.airTicks != nil {
+		delete(v.airTicks, id)
+	}
 }
