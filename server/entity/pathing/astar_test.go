@@ -1,6 +1,7 @@
 package pathing
 
 import (
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -247,7 +248,7 @@ func TestNavigator_NaNAndNilSafety(t *testing.T) {
 	}
 
 	// NaN coordinates should not panic or hang
-	nan := 1e300*1e300 - 1e300*1e300
+	nan := math.NaN()
 	path = nav.FindPathSync(mgl64.Vec3{nan, 1, 1}, mgl64.Vec3{5, 1, 1}, w)
 	if path != nil {
 		t.Fatalf("expected nil path with NaN coordinate")

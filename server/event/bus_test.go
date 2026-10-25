@@ -165,10 +165,10 @@ type customResettableEvent struct {
 	cancelled bool
 }
 
-func (e *customResettableEvent) Cancelled() bool                { return e.cancelled }
-func (e *customResettableEvent) Cancel()                        { e.cancelled = true }
-func (e *customResettableEvent) Uncancel()                      { e.cancelled = false }
-func (e *customResettableEvent) SetCancelled(cancelled bool)    { e.cancelled = cancelled }
+func (e *customResettableEvent) Cancelled() bool             { return e.cancelled }
+func (e *customResettableEvent) Cancel()                     { e.cancelled = true }
+func (e *customResettableEvent) Uncancel()                   { e.cancelled = false }
+func (e *customResettableEvent) SetCancelled(cancelled bool) { e.cancelled = cancelled }
 
 func TestBusPanicRecoveryAndMonitorInvariance(t *testing.T) {
 	bus := NewBus()

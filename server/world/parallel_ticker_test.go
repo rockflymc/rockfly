@@ -178,10 +178,10 @@ func TestParallelWorldTicker_NilAndNaNSafety(t *testing.T) {
 	var failedReason error
 	// Test NaN position
 	success := validTicker.TransferEntity(EntityHandoff{
-		Handle:  &EntityHandle{},
-		Source:  &World{},
-		Target:  &World{},
-		Pos:     mgl64.Vec3{0, 64, math.NaN()},
+		Handle: &EntityHandle{},
+		Source: &World{},
+		Target: &World{},
+		Pos:    mgl64.Vec3{0, 64, math.NaN()},
 		OnFail: func(err error) {
 			failedReason = err
 		},

@@ -81,7 +81,7 @@ func (s *Sampler) ClosestBiome(p Parameters) world.Biome {
 	if len(s.targets) == 0 {
 		return biome.Plains{}
 	}
-	var bestBiome world.Biome = s.targets[0].Biome
+	bestBiome := s.targets[0].Biome
 	bestDist := p.DistanceSq(s.targets[0].Params)
 
 	for i := 1; i < len(s.targets); i++ {

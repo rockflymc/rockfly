@@ -2,6 +2,7 @@ package entity
 
 import (
 	"image/color"
+	"math"
 	"testing"
 	"time"
 
@@ -160,7 +161,7 @@ func TestLivingEntity_NaNAndNilSafety(t *testing.T) {
 	e := NewLivingEntity(nil, 20.0)
 
 	// NaN damage should be ignored and not corrupt state
-	dealt, vul := e.Hurt(1e300*1e300-1e300*1e300, AttackDamageSource{}) // NaN
+	dealt, vul := e.Hurt(math.NaN(), AttackDamageSource{})
 	if vul || dealt != 0 || e.Health() != 20.0 {
 		t.Fatalf("expected NaN damage to be rejected, got dealt=%v, hp=%v", dealt, e.Health())
 	}

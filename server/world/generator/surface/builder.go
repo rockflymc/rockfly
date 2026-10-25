@@ -25,21 +25,21 @@ type RuleBuilder struct {
 	bedrock   uint32
 	water     uint32
 
-	desertID         uint32
-	badlandsID       uint32
-	erodedBadlandsID uint32
-	woodedBadlandsID uint32
-	snowyID          uint32
-	snowyBeachID     uint32
-	snowyTaigaID     uint32
-	snowySlopesID    uint32
-	iceSpikesID      uint32
-	frozenPeaksID    uint32
-	taigaID          uint32
-	oldGrowthPineID  uint32
+	desertID          uint32
+	badlandsID        uint32
+	erodedBadlandsID  uint32
+	woodedBadlandsID  uint32
+	snowyID           uint32
+	snowyBeachID      uint32
+	snowyTaigaID      uint32
+	snowySlopesID     uint32
+	iceSpikesID       uint32
+	frozenPeaksID     uint32
+	taigaID           uint32
+	oldGrowthPineID   uint32
 	oldGrowthSpruceID uint32
-	beachID          uint32
-	stonyID          uint32
+	beachID           uint32
+	stonyID           uint32
 }
 
 // NewRuleBuilder constructs a RuleBuilder using the DefaultBlockRegistry and given seed.

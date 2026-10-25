@@ -494,16 +494,13 @@ func (l *LivingEntity) Hurt(damage float64, src world.DamageSource) (float64, bo
 	}
 
 	// Damage immunity frame evaluation (0.5s window with higher damage overwrite)
-	var effectiveDamage float64
-	var vulnerable bool
+	effectiveDamage := damage
 	if l.immunity != nil {
+		var vulnerable bool
 		effectiveDamage, vulnerable = l.immunity.Evaluate(damage, time.Second/2)
 		if !vulnerable {
 			return 0, false
 		}
-	} else {
-		effectiveDamage = damage
-		vulnerable = true
 	}
 
 	// Armor mitigation

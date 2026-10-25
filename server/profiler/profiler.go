@@ -200,11 +200,12 @@ func (p *Profiler) GenerateReport() ProfilerReport {
 	tps := 20.0
 	if uptime.Seconds() > 0 && ticks > 0 {
 		measured := float64(ticks) / uptime.Seconds()
-		if math.IsNaN(measured) || measured < 0 {
+		switch {
+		case math.IsNaN(measured) || measured < 0:
 			tps = 0.0
-		} else if measured < 20.0 {
+		case measured < 20.0:
 			tps = math.Round(measured*100) / 100
-		} else {
+		default:
 			tps = 20.0
 		}
 	}

@@ -150,6 +150,9 @@ func TestMovementValidator_NaNAndNilSafety(t *testing.T) {
 	if valid {
 		t.Fatal("expected Inf coordinate injection to be rejected")
 	}
+	if reason == "" {
+		t.Fatal("expected rejection reason for Inf injection")
+	}
 
 	// 3. Nil validator
 	var nilValidator *MovementValidator

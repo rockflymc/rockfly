@@ -222,8 +222,7 @@ func wrapPlayer(p *player.Player, tx *world.Tx) map[string]any {
 			p.Message(msg)
 		},
 		"teleport": func(val any) {
-			switch v := val.(type) {
-			case map[string]any:
+			if v, ok := val.(map[string]any); ok {
 				var x, y, z float64
 				if fx, ok := toFloat(v["x"]); ok {
 					x = fx
