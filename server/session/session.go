@@ -82,6 +82,7 @@ type Session struct {
 	changingDimension              atomic.Bool
 	moving                         bool
 	movementValidator              *MovementValidator
+	antiDupe                       *AntiDupeGuard
 
 	lastChunkPos world.ChunkPos
 
@@ -204,6 +205,7 @@ func (conf Config) New(conn Conn) *Session {
 		recipes:                make(map[uint32]recipe.Recipe),
 		conf:                   conf,
 		movementValidator:      NewMovementValidator(DefaultMovementValidationConfig()),
+		antiDupe:               NewAntiDupeGuard(),
 		hudUpdates:             make(map[hud.Element]bool),
 		hiddenHud:              make(map[hud.Element]struct{}),
 		debugShapes:            make(map[int]debug.Shape),
