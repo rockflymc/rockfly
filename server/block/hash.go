@@ -62,6 +62,7 @@ const (
 	hashCopperTrapdoor
 	hashCoral
 	hashCoralBlock
+	hashCrafter
 	hashCraftingTable
 	hashDeadBush
 	hashDecoratedPot
@@ -73,11 +74,13 @@ const (
 	hashDiorite
 	hashDirt
 	hashDirtPath
+	hashDispenser
 	hashDoubleFlower
 	hashDoubleTallGrass
 	hashDragonEgg
 	hashDriedKelp
 	hashDripstone
+	hashDropper
 	hashEmerald
 	hashEmeraldOre
 	hashEnchantingTable
@@ -152,6 +155,7 @@ const (
 	hashNetherite
 	hashNetherrack
 	hashNote
+	hashObserver
 	hashObsidian
 	hashPackedIce
 	hashPackedMud
@@ -486,6 +490,10 @@ func (c CoralBlock) Hash() (uint64, uint64) {
 	return hashCoralBlock, uint64(c.Type.Uint8()) | uint64(boolByte(c.Dead))<<3
 }
 
+func (c Crafter) Hash() (uint64, uint64) {
+	return hashCrafter, uint64(c.Orientation) | uint64(boolByte(c.Crafting))<<4 | uint64(boolByte(c.Triggered))<<5
+}
+
 func (CraftingTable) Hash() (uint64, uint64) {
 	return hashCraftingTable, 0
 }
@@ -530,6 +538,10 @@ func (DirtPath) Hash() (uint64, uint64) {
 	return hashDirtPath, 0
 }
 
+func (d Dispenser) Hash() (uint64, uint64) {
+	return hashDispenser, uint64(d.Facing) | uint64(boolByte(d.Triggered))<<3
+}
+
 func (d DoubleFlower) Hash() (uint64, uint64) {
 	return hashDoubleFlower, uint64(boolByte(d.UpperPart)) | uint64(d.Type.Uint8())<<1
 }
@@ -548,6 +560,10 @@ func (DriedKelp) Hash() (uint64, uint64) {
 
 func (Dripstone) Hash() (uint64, uint64) {
 	return hashDripstone, 0
+}
+
+func (d Dropper) Hash() (uint64, uint64) {
+	return hashDropper, uint64(d.Facing) | uint64(boolByte(d.Triggered))<<3
 }
 
 func (Emerald) Hash() (uint64, uint64) {
@@ -844,6 +860,10 @@ func (Netherrack) Hash() (uint64, uint64) {
 
 func (Note) Hash() (uint64, uint64) {
 	return hashNote, 0
+}
+
+func (o Observer) Hash() (uint64, uint64) {
+	return hashObserver, uint64(o.Facing) | uint64(boolByte(o.Powered))<<3
 }
 
 func (o Obsidian) Hash() (uint64, uint64) {
