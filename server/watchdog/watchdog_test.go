@@ -104,3 +104,22 @@ func BenchmarkWatchdog_Heartbeat(b *testing.B) {
 		w.Heartbeat()
 	}
 }
+
+func TestWatchdog_NilAndZeroSafety(t *testing.T) {
+	// 1. Nil watchdog checks
+	var nilWatchdog *Watchdog
+	nilWatchdog.Heartbeat()
+	nilWatchdog.Start()
+	nilWatchdog.Stop()
+	if nilWatchdog.Triggered() {
+		t.Fatal("expected false on nil watchdog Triggered")
+	}
+
+	// 2. Zero-valued watchdog checks
+	var zeroWatchdog Watchdog
+	zeroWatchdog.Heartbeat()
+	zeroWatchdog.Stop()
+	if zeroWatchdog.Triggered() {
+		t.Fatal("expected false on zero watchdog Triggered")
+	}
+}

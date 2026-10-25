@@ -75,11 +75,20 @@ func New(conf Config) *Watchdog {
 
 // Heartbeat signals that a monitored tick has completed successfully.
 func (w *Watchdog) Heartbeat() {
+	if w == nil {
+		return
+	}
 	w.lastHeartbeat.Store(time.Now().UnixNano())
 }
 
 // Start launches the background watchdog monitor loop.
 func (w *Watchdog) Start() {
+	if w == nil {
+		return
+	}
+	if w.stopChan == nil {
+		w.stopChan = make(chan struct{})
+	}
 	if w.running.CompareAndSwap(false, true) {
 		w.Heartbeat()
 		w.wg.Add(1)
@@ -89,21 +98,38 @@ func (w *Watchdog) Start() {
 
 // Stop cleanly shuts down the watchdog background thread.
 func (w *Watchdog) Stop() {
+	if w == nil {
+		return
+	}
 	if w.running.CompareAndSwap(true, false) {
-		close(w.stopChan)
+		if w.stopChan != nil {
+			close(w.stopChan)
+		}
 		w.wg.Wait()
 	}
 }
 
 // Triggered returns whether the watchdog has caught a hang.
 func (w *Watchdog) Triggered() bool {
+	if w == nil {
+		return false
+	}
 	return w.triggered.Load()
 }
 
 // monitorLoop periodically checks elapsed time since the last heartbeat.
 func (w *Watchdog) monitorLoop() {
 	defer w.wg.Done()
-	ticker := time.NewTicker(w.conf.CheckInterval)
+	interval := w.conf.CheckInterval
+	if interval <= 0 {
+		interval = 1 * time.Second
+	}
+	timeout := w.conf.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -114,7 +140,7 @@ func (w *Watchdog) monitorLoop() {
 			last := time.Unix(0, w.lastHeartbeat.Load())
 			elapsed := time.Since(last)
 
-			if elapsed > w.conf.Timeout {
+			if elapsed > timeout {
 				if w.triggered.CompareAndSwap(false, true) {
 					w.handleHang(elapsed)
 					return
@@ -126,7 +152,20 @@ func (w *Watchdog) monitorLoop() {
 
 // handleHang captures full goroutine dumps, writes crash reports, and triggers onHang handler.
 func (w *Watchdog) handleHang(elapsed time.Duration) {
-	w.conf.Logger.Error("WATCHDOG: Server tick loop has been frozen!", "elapsed", elapsed, "threshold", w.conf.Timeout)
+	logger := w.conf.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	timeout := w.conf.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	crashDir := w.conf.CrashReportDir
+	if crashDir == "" {
+		crashDir = "crash-reports"
+	}
+
+	logger.Error("WATCHDOG: Server tick loop has been frozen!", "elapsed", elapsed, "threshold", timeout)
 
 	// Capture all goroutine stack traces across the entire runtime
 	buf := make([]byte, 2*1024*1024)
@@ -144,16 +183,16 @@ func (w *Watchdog) handleHang(elapsed time.Duration) {
 		"  CPUs: %d\n"+
 		"  Go Version: %s\n\n"+
 		"Goroutine Dump:\n%s\n",
-		now.Format(time.RFC3339), elapsed, w.conf.Timeout,
+		now.Format(time.RFC3339), elapsed, timeout,
 		runtime.GOOS, runtime.GOARCH, runtime.NumCPU(), runtime.Version(),
 		string(stackTrace),
 	)
 
-	_ = os.MkdirAll(w.conf.CrashReportDir, 0755)
-	reportFile := filepath.Join(w.conf.CrashReportDir, fmt.Sprintf("crash-%s.txt", now.Format("2006-01-02_15.04.05")))
+	_ = os.MkdirAll(crashDir, 0755)
+	reportFile := filepath.Join(crashDir, fmt.Sprintf("crash-%s.txt", now.Format("2006-01-02_15.04.05")))
 	_ = os.WriteFile(reportFile, []byte(report), 0644)
 
-	w.conf.Logger.Error("WATCHDOG: Crash report written to disk", "file", reportFile)
+	logger.Error("WATCHDOG: Crash report written to disk", "file", reportFile)
 
 	if w.conf.OnHang != nil {
 		w.conf.OnHang(reportFile, stackTrace)
