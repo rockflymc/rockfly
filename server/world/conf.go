@@ -79,6 +79,10 @@ type Config struct {
 	// use NewBlockRegistry(), register blocks/states, and call Finalize().
 	Blocks BlockRegistry
 
+	// EntityActivationRange specifies the configuration for Paper-style
+	// Entity Activation Range (EAR). If not set, DefaultEARConfig() is used.
+	EntityActivationRange EARConfig
+
 	// Synchronous removes the World's own background goroutines. Immediate tasks
 	// from World.Do and Call run on the calling goroutine, the World is not saved
 	// or unloaded automatically, and time only passes on explicit
@@ -151,6 +155,7 @@ func (conf Config) New() *World {
 	w := &World{
 		ticketManager:    chunk.NewTicketManager(200),
 		lightingEngine:   starlight.NewEngine(conf.ChunkLoadWorkers),
+		earTracker:       NewEARTracker(conf.EntityActivationRange),
 		scheduledUpdates: newScheduledTickQueue(s.CurrentTick),
 		redstone:         newRedstoneEngine(s.CurrentTick),
 		entities:         make(map[*EntityHandle]ChunkPos),

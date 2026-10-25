@@ -83,6 +83,7 @@ type World struct {
 	redstone         *redstoneEngine
 	ticketManager    *chunk.TicketManager
 	lightingEngine   *starlight.Engine
+	earTracker       *EARTracker
 	neighbourUpdates []neighbourUpdate
 
 	viewerMu sync.Mutex
@@ -140,6 +141,11 @@ func (w *World) Generator() Generator {
 // TicketManager returns the chunk ticket manager of the World.
 func (w *World) TicketManager() *chunk.TicketManager {
 	return w.ticketManager
+}
+
+// EARTracker returns the Entity Activation Range tracker of the World.
+func (w *World) EARTracker() *EARTracker {
+	return w.earTracker
 }
 
 // ChunkLevel returns the current ticket level of the chunk at pos.
