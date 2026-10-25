@@ -243,6 +243,7 @@ func Run(opts ...LifecycleOptions) error {
 		Level:   slog.LevelInfo,
 		LogsDir: opt.LogsDir,
 	})
+	defer consoleHandler.Close()
 	logger := slog.New(consoleHandler)
 	slog.SetDefault(logger)
 	opt.Logger = logger
