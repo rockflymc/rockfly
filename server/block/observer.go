@@ -51,6 +51,9 @@ func (o Observer) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face cube.Face
 
 // NeighbourUpdateTick schedules an observation pulse whenever the block in front of its sensor changes.
 func (o Observer) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if changedNeighbour == pos.Side(o.Facing) && !o.Powered {
 		tx.ScheduleBlockUpdate(pos, o, redstoneTicks(1))
 	}
@@ -58,6 +61,9 @@ func (o Observer) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.
 
 // ScheduledTick turns the observer on for a 1-redstone-tick pulse, or turns it off when the pulse concludes.
 func (o Observer) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if !o.Powered {
 		o.Powered = true
 		tx.SetBlock(pos, o, nil)

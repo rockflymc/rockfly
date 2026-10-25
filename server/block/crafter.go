@@ -156,6 +156,9 @@ func (c Crafter) Inventory(*world.Tx, cube.Pos) *inventory.Inventory {
 
 // AddViewer adds a viewer to the crafter.
 func (c Crafter) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if c.viewerMu == nil {
+		return
+	}
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
 	c.viewers[v] = struct{}{}
@@ -163,6 +166,9 @@ func (c Crafter) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
 
 // RemoveViewer removes a viewer from the crafter.
 func (c Crafter) RemoveViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if c.viewerMu == nil {
+		return
+	}
 	c.viewerMu.Lock()
 	defer c.viewerMu.Unlock()
 	delete(c.viewers, v)
@@ -201,6 +207,9 @@ func (c Crafter) CalculateComparatorSignal() int {
 				count++
 			}
 		}
+	}
+	if count > 15 {
+		count = 15
 	}
 	return count
 }
@@ -244,6 +253,9 @@ func (c Crafter) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *worl
 
 // NeighbourUpdateTick schedules crafting on redstone rising edges.
 func (c Crafter) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	powered := tx.RedstonePower(pos) > 0
 	if powered && !c.Triggered {
 		tx.ScheduleBlockUpdate(pos, c, redstoneTicks(2))
@@ -255,6 +267,9 @@ func (c Crafter) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 // RedstonePowerAction schedules crafting on direct redstone power changes.
 func (c Crafter) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, newPower int) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if newPower > 0 && oldPower == 0 && !c.Triggered {
 		tx.ScheduleBlockUpdate(pos, c, redstoneTicks(2))
 	} else if newPower == 0 && oldPower > 0 && c.Triggered {
@@ -265,6 +280,9 @@ func (c Crafter) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, newPo
 
 // ScheduledTick executes automated crafting on a redstone pulse.
 func (c Crafter) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if c.Crafting {
 		c.Crafting = false
 		tx.SetBlock(pos, c, nil)
@@ -279,7 +297,12 @@ func (c Crafter) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // Craft checks the 3x3 crafting matrix against registered recipes and synthesizes the item.
 func (c Crafter) Craft(pos cube.Pos, tx *world.Tx) bool {
-	if c.inventory == nil {
+	if c.inventory == nil || tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
+
+	targetPos := pos.Side(c.Orientation.Facing())
+	if targetPos.OutOfBounds(tx.Range()) {
 		return false
 	}
 
@@ -293,6 +316,11 @@ func (c Crafter) Craft(pos cube.Pos, tx *world.Tx) bool {
 			continue
 		}
 
+		out := r.Output()
+		if len(out) == 0 {
+			continue
+		}
+
 		if matchContributing, ok := matchRecipe(r, grid); ok {
 			// Consume 1 item from each contributing slot.
 			for _, slot := range matchContributing {
@@ -300,15 +328,16 @@ func (c Crafter) Craft(pos cube.Pos, tx *world.Tx) bool {
 				_ = c.inventory.SetItem(slot, st.Grow(-1))
 			}
 
-			output := r.Output()[0]
-			targetPos := pos.Side(c.Orientation.Facing())
+			output := out[0]
 			targetBlock := tx.Block(targetPos)
 
 			// Attempt transfer into adjacent container.
 			transferred := false
 			if container, isContainer := targetBlock.(Container); isContainer {
-				if _, err := container.Inventory(tx, targetPos).AddItem(output); err == nil {
-					transferred = true
+				if inv := container.Inventory(tx, targetPos); inv != nil {
+					if _, err := inv.AddItem(output); err == nil {
+						transferred = true
+					}
 				}
 			}
 
@@ -437,6 +466,9 @@ func matchingRecipeItem(has item.Stack, expected recipe.Item) bool {
 // BreakInfo ...
 func (c Crafter) BreakInfo() BreakInfo {
 	return newBreakInfo(3.5, pickaxeHarvestable, pickaxeEffective, oneOf(NewCrafter())).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		if c.inventory != nil {
 			for _, i := range c.inventory.Clear() {
 				dropItem(tx, i, pos.Vec3Centre())
