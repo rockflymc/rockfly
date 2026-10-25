@@ -3,18 +3,15 @@ package surface
 import (
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/generator"
 )
 
-// ProtoChunk represents an un-ticked chunk column undergoing generation staging
-// before being promoted into the ticking lifecycle.
-type ProtoChunk struct {
-	*chunk.Chunk
-	Stage int
-}
+// ProtoChunk is an alias to generator.ProtoChunk.
+type ProtoChunk = generator.ProtoChunk
 
 // NewProtoChunk wraps a *chunk.Chunk in a ProtoChunk container.
 func NewProtoChunk(c *chunk.Chunk) *ProtoChunk {
-	return &ProtoChunk{Chunk: c}
+	return generator.NewProtoChunk(chunk.Pos{0, 0}, c)
 }
 
 // SurfaceRule defines the interface for rule-based surface block placement.
