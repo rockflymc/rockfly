@@ -1,0 +1,39 @@
+name: Performance Regression & Benchmarks
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  benchmarks:
+    name: High-Throughput Subsystem Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Benchmark Spatial Hash Entity Queries
+        run: go test -v -run=^$ -bench=BenchmarkSpatialGrid ./server/world/... -benchmem
+
+      - name: Benchmark Starlight Light Propagation
+        run: go test -v -run=^$ -bench=BenchmarkStarlight ./server/world/chunk/starlight/... -benchmem
+
+      - name: Benchmark SIMD Noise Evaluation
+        run: go test -v -run=^$ -bench=BenchmarkOctave ./server/world/generator/noise/... -benchmem
+
+      - name: Benchmark Hopper Optimization Sleep Cycles
+        run: go test -v -run=^$ -bench=BenchmarkHopper ./server/block/... -benchmem
+
+      - name: Benchmark TypeScript Transpilation Speed (<5ms)
+        run: go test -v -run=TestTranspiler_TranspileSpeed ./server/plugin/ts/...
+
+      - name: Benchmark Wazero 10k Block Batch Commit (<2ms)
+        run: go test -v -run=TestWASMPlugin_10kBlockMutationsGoGuest ./server/plugin/wasm/...
