@@ -46,11 +46,11 @@ func (c EffectClear) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 
 // EffectGive applies a status effect to target players.
 type EffectGive struct {
-	Player        []cmd.Target          `cmd:"player"`
-	Effect        string                `cmd:"effect"`
-	Seconds       cmd.Optional[int]     `cmd:"seconds"`
-	Amplifier     cmd.Optional[int]     `cmd:"amplifier"`
-	HideParticles cmd.Optional[bool]    `cmd:"hideParticles"`
+	Player        []cmd.Target       `cmd:"player"`
+	Effect        string             `cmd:"effect"`
+	Seconds       cmd.Optional[int]  `cmd:"seconds"`
+	Amplifier     cmd.Optional[int]  `cmd:"amplifier"`
+	HideParticles cmd.Optional[bool] `cmd:"hideParticles"`
 }
 
 func (c EffectGive) Allow(src cmd.Source) bool {
@@ -78,12 +78,10 @@ func (c EffectGive) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	dur := time.Duration(seconds) * time.Second
 
 	var eff effect.Effect
-	if instant, ok := effType.(effect.Type); ok {
-		if lasting, ok := effType.(effect.LastingType); ok {
-			eff = effect.New(lasting, level, dur)
-		} else {
-			eff = effect.NewInstant(instant, level)
-		}
+	if lasting, ok := effType.(effect.LastingType); ok {
+		eff = effect.New(lasting, level, dur)
+	} else {
+		eff = effect.NewInstant(effType, level)
 	}
 
 	if hp, ok := c.HideParticles.Load(); ok && hp {

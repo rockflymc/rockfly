@@ -17,9 +17,9 @@ func registerTitle() {
 
 // TitleCmd controls player screen titles.
 type TitleCmd struct {
-	Player []cmd.Target               `cmd:"player"`
-	Action string                     `cmd:"titleLocation"`
-	Text   cmd.Optional[cmd.Varargs]  `cmd:"titleText"`
+	Player []cmd.Target              `cmd:"player"`
+	Action string                    `cmd:"titleLocation"`
+	Text   cmd.Optional[cmd.Varargs] `cmd:"titleText"`
 }
 
 func (c TitleCmd) Allow(src cmd.Source) bool {
