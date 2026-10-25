@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/plugin"
+	"github.com/df-mc/dragonfly/server/plugin/manifest"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -16,7 +16,7 @@ import (
 type WASMPlugin struct {
 	mu sync.RWMutex
 
-	manifest  plugin.PluginManifest
+	manifest  manifest.PluginManifest
 	ctx       context.Context
 	cancel    context.CancelFunc
 	runtime   wazero.Runtime
@@ -30,7 +30,7 @@ type WASMPlugin struct {
 }
 
 // NewWASMPlugin initializes a new Wazero runtime and configures the host environment.
-func NewWASMPlugin(ctx context.Context, manifest plugin.PluginManifest) (*WASMPlugin, error) {
+func NewWASMPlugin(ctx context.Context, m manifest.PluginManifest) (*WASMPlugin, error) {
 	pluginCtx, cancel := context.WithCancel(ctx)
 	// Pure-Go Wazero runtime (CGO_ENABLED=0 compliant)
 	config := wazero.NewRuntimeConfig()
@@ -45,7 +45,7 @@ func NewWASMPlugin(ctx context.Context, manifest plugin.PluginManifest) (*WASMPl
 	}
 
 	p := &WASMPlugin{
-		manifest: manifest,
+		manifest: m,
 		ctx:      pluginCtx,
 		cancel:   cancel,
 		runtime:  rt,
@@ -61,7 +61,7 @@ func NewWASMPlugin(ctx context.Context, manifest plugin.PluginManifest) (*WASMPl
 }
 
 // Manifest returns the plugin's metadata.
-func (p *WASMPlugin) Manifest() plugin.PluginManifest {
+func (p *WASMPlugin) Manifest() manifest.PluginManifest {
 	return p.manifest
 }
 

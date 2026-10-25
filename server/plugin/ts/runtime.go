@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/df-mc/dragonfly/server/event"
-	"github.com/df-mc/dragonfly/server/plugin"
+	"github.com/df-mc/dragonfly/server/plugin/manifest"
 	"github.com/dop251/goja"
 )
 
@@ -21,7 +22,7 @@ type tsEventListener struct {
 type TSPlugin struct {
 	mu sync.Mutex
 
-	manifest  plugin.PluginManifest
+	manifest  manifest.PluginManifest
 	vm        *goja.Runtime
 	onEnable  goja.Callable
 	onDisable goja.Callable
@@ -35,10 +36,10 @@ type TSPlugin struct {
 }
 
 // NewTSPlugin initializes a new TSPlugin with reasonable defaults.
-func NewTSPlugin(manifest plugin.PluginManifest) *TSPlugin {
+func NewTSPlugin(m manifest.PluginManifest) *TSPlugin {
 	vm := goja.New()
 	p := &TSPlugin{
-		manifest: manifest,
+		manifest: m,
 		vm:       vm,
 		timeout:  50 * time.Millisecond, // Strict 50ms execution watchdog
 	}
@@ -47,7 +48,7 @@ func NewTSPlugin(manifest plugin.PluginManifest) *TSPlugin {
 }
 
 // Manifest returns the plugin manifest metadata.
-func (p *TSPlugin) Manifest() plugin.PluginManifest {
+func (p *TSPlugin) Manifest() manifest.PluginManifest {
 	return p.manifest
 }
 
@@ -125,6 +126,13 @@ func (p *TSPlugin) Disable() error {
 	}
 	p.listeners = nil
 	p.eventHandlers = nil
+
+	// Clean up dynamic commands registered by this plugin
+	for _, cmdName := range p.commands {
+		cmd.UnregisterByName(cmdName)
+	}
+	p.commands = nil
+
 	p.enabled = false
 
 	if p.onDisable != nil {
@@ -165,4 +173,18 @@ func (p *TSPlugin) callWithTimeout(fn goja.Callable, this goja.Value, args ...go
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.callWithTimeoutLocked(fn, this, args...)
+}
+
+// VM returns the underlying Goja runtime for inspection or evaluation.
+func (p *TSPlugin) VM() *goja.Runtime {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.vm
+}
+
+// Eval executes a JavaScript expression on the plugin's runtime.
+func (p *TSPlugin) Eval(src string) (goja.Value, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.vm.RunString(src)
 }

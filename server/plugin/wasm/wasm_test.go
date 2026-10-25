@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/plugin"
+	"github.com/df-mc/dragonfly/server/plugin/manifest"
 )
 
 func TestDecodeBlockBatch_BoundsChecking(t *testing.T) {
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	manifest := plugin.PluginManifest{
+	manifest := manifest.PluginManifest{
 		Name:    "WasmWorldGen",
 		Version: "1.0.0",
 		Author:  "RockflyTeam",
