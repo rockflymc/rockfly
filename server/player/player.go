@@ -122,6 +122,7 @@ type Player struct {
 	handle *world.EntityHandle
 	data   *world.EntityData
 	*playerData
+	bridge eventBridge
 }
 
 func (p *Player) H() *world.EntityHandle {
@@ -3498,6 +3499,12 @@ func (p *Player) useContext() *item.UseContext {
 // Handler returns the Handler of the player, bridging all events to event.DefaultBus()
 // with Paper-grade priority and cancellation semantics while delegating to any custom handler set with Handle.
 func (p *Player) Handler() Handler {
+	if p == nil {
+		return NopHandler{}
+	}
+	if p.bridge.p == p {
+		return &p.bridge
+	}
 	return &eventBridge{p: p}
 }
 

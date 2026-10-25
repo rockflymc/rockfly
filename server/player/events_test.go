@@ -212,3 +212,72 @@ func TestPlayerMoveEventCancellation(t *testing.T) {
 		}
 	})
 }
+
+func TestPlayerMoveBusTypedDispatch(t *testing.T) {
+	w, h := createTestPlayer(t)
+
+	var moveCount int
+	sub := player.MoveBus.Subscribe(func(e *player.PlayerMoveEvent) {
+		moveCount++
+		if e.To.X() > 50 {
+			e.Cancel()
+		}
+	})
+	defer sub.Unsubscribe()
+
+	execWorld(w, func(tx *world.Tx) {
+		ent, ok := h.Entity(tx)
+		if !ok {
+			t.Fatal("failed to resolve entity")
+		}
+		p := ent.(*player.Player)
+
+		ctx := player.NewEventContext(tx, p)
+		p.Handler().HandleMove(ctx, mgl64.Vec3{10, 60, 0}, cube.Rotation{})
+		if ctx.Cancelled() {
+			t.Fatalf("expected move to X=10 to succeed")
+		}
+
+		ctx2 := player.NewEventContext(tx, p)
+		p.Handler().HandleMove(ctx2, mgl64.Vec3{60, 60, 0}, cube.Rotation{})
+		if !ctx2.Cancelled() {
+			t.Fatalf("expected move to X=60 to be cancelled by MoveBus")
+		}
+
+		if moveCount != 2 {
+			t.Fatalf("expected MoveBus to have received 2 dispatches, got %d", moveCount)
+		}
+	})
+}
+
+func TestPlayerNilTxSafetyAndBridgeReuse(t *testing.T) {
+	w, h := createTestPlayer(t)
+
+	execWorld(w, func(tx *world.Tx) {
+		ent, ok := h.Entity(tx)
+		if !ok {
+			t.Fatal("failed to resolve entity")
+		}
+		p := ent.(*player.Player)
+
+		// Test bridge reuse
+		h1 := p.Handler()
+		h2 := p.Handler()
+		if h1 != h2 {
+			t.Errorf("expected p.Handler() to return cached bridge instance")
+		}
+
+		// Test nil tx safety
+		ctx := player.NewEventContext(tx, p)
+		p.Handler().HandleStartBreak(ctx, cube.Pos{0, 50, 0})
+		p.Handler().HandleBlockBreak(ctx, cube.Pos{0, 50, 0}, nil, nil)
+	})
+
+	// Test nil Player safety
+	var nilPlayer *player.Player
+	nilHandler := nilPlayer.Handler()
+	if nilHandler == nil {
+		t.Fatalf("expected nilPlayer.Handler() to return NopHandler, got nil")
+	}
+	nilHandler.HandleMove(nil, mgl64.Vec3{}, cube.Rotation{})
+}

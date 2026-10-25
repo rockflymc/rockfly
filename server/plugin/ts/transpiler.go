@@ -47,6 +47,7 @@ func (t *Transpiler) Bundle(entryFilePath string) (string, error) {
 		Target:      api.ES2020,
 		Format:      api.FormatIIFE,
 		Platform:    api.PlatformNeutral,
+		External:    []string{"rockfly"},
 		Sourcemap:   api.SourceMapInline,
 	})
 

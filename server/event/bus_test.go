@@ -160,3 +160,119 @@ func TestConcurrentEventPublish(t *testing.T) {
 		t.Errorf("expected %d total executions, got %d", expected, totalCounter.Load())
 	}
 }
+
+type customResettableEvent struct {
+	cancelled bool
+}
+
+func (e *customResettableEvent) Cancelled() bool                { return e.cancelled }
+func (e *customResettableEvent) Cancel()                        { e.cancelled = true }
+func (e *customResettableEvent) Uncancel()                      { e.cancelled = false }
+func (e *customResettableEvent) SetCancelled(cancelled bool)    { e.cancelled = cancelled }
+
+func TestBusPanicRecoveryAndMonitorInvariance(t *testing.T) {
+	bus := NewBus()
+	var executed []string
+
+	Subscribe(bus, func(e *customResettableEvent) {
+		executed = append(executed, "NORMAL_PANIC")
+		panic("listener exploded")
+	}, ListenerOptions{Priority: PriorityNormal})
+
+	Subscribe(bus, func(e *customResettableEvent) {
+		executed = append(executed, "HIGH_RUNS")
+	}, ListenerOptions{Priority: PriorityHigh})
+
+	Subscribe(bus, func(e *customResettableEvent) {
+		executed = append(executed, "MONITOR_ILLEGAL_CANCEL")
+		e.Cancel() // Monitor trying to cancel
+	}, ListenerOptions{Priority: PriorityMonitor})
+
+	ev := &customResettableEvent{cancelled: false}
+	Publish(bus, ev)
+
+	if len(executed) != 3 {
+		t.Fatalf("expected 3 listeners executed despite panic, got %v", executed)
+	}
+
+	// Verify invariant: Monitor cancellation attempt was reverted
+	if ev.Cancelled() {
+		t.Errorf("expected Monitor cancellation to be reverted, but event was cancelled")
+	}
+}
+
+func TestTypedBusPriorityAndCancellation(t *testing.T) {
+	tbus := NewTypedBus[customResettableEvent]()
+	var executed []string
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		executed = append(executed, "LOWEST")
+	}, ListenerOptions{Priority: PriorityLowest})
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		executed = append(executed, "NORMAL_CANCEL")
+		e.Cancel()
+	}, ListenerOptions{Priority: PriorityNormal})
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		executed = append(executed, "HIGH_IGNORED")
+	}, ListenerOptions{Priority: PriorityHigh, IgnoreCancelled: true})
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		executed = append(executed, "MONITOR_ILLEGAL_UNCANCEL")
+		e.Uncancel() // Monitor trying to uncancel
+	}, ListenerOptions{Priority: PriorityMonitor})
+
+	ev := &customResettableEvent{}
+	tbus.Publish(ev)
+
+	expected := []string{"LOWEST", "NORMAL_CANCEL", "MONITOR_ILLEGAL_UNCANCEL"}
+	if len(executed) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, executed)
+	}
+	for i, name := range expected {
+		if executed[i] != name {
+			t.Errorf("step %d: expected %s, got %s", i, name, executed[i])
+		}
+	}
+
+	// Verify monitor uncancel was reverted; event remains cancelled
+	if !ev.Cancelled() {
+		t.Errorf("expected event to remain cancelled despite monitor uncancel attempt")
+	}
+}
+
+func TestTypedBusPanicRecovery(t *testing.T) {
+	tbus := NewTypedBus[customResettableEvent]()
+	var afterPanicRan bool
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		panic("typed listener panic")
+	}, ListenerOptions{Priority: PriorityLowest})
+
+	tbus.Subscribe(func(e *customResettableEvent) {
+		afterPanicRan = true
+	}, ListenerOptions{Priority: PriorityNormal})
+
+	ev := &customResettableEvent{}
+	tbus.Publish(ev)
+
+	if !afterPanicRan {
+		t.Errorf("expected listener after panic to still execute")
+	}
+}
+
+func BenchmarkTypedBusDispatch(b *testing.B) {
+	tbus := NewTypedBus[customResettableEvent]()
+	tbus.Subscribe(func(e *customResettableEvent) {
+		// no-op listener
+	}, ListenerOptions{Priority: PriorityNormal})
+
+	ev := &customResettableEvent{}
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		tbus.Publish(ev)
+	}
+}

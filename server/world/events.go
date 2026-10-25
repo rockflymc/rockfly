@@ -6,6 +6,13 @@ import (
 	"github.com/go-gl/mathgl/mgl64"
 )
 
+var (
+	// LiquidFlowBus is a zero-allocation typed bus for high-frequency liquid flow events.
+	LiquidFlowBus = event.NewTypedBus[LiquidFlowEvent]()
+	// RedstoneUpdateBus is a zero-allocation typed bus for high-frequency redstone simulation events.
+	RedstoneUpdateBus = event.NewTypedBus[RedstoneUpdateEvent]()
+)
+
 // LiquidFlowEvent is dispatched when a liquid attempts to flow from one position into another.
 type LiquidFlowEvent struct {
 	event.BaseCancellable

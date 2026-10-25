@@ -13,6 +13,8 @@ const (
 	LogLevelInfo  = 0
 	LogLevelWarn  = 1
 	LogLevelError = 2
+
+	MaxLogMessageLength = 64 * 1024
 )
 
 // registerHostABI registers all Rockfly host functions into the Wazero runtime before plugin instantiation.
@@ -23,14 +25,19 @@ func (p *WASMPlugin) registerHostABI(ctx context.Context) error {
 			if count == 0 {
 				return 0
 			}
+			if count > MaxBatchSize {
+				fmt.Printf("[%s] [WASM ERROR] batch size %d exceeds maximum limit %d\n",
+					p.manifest.Name, count, MaxBatchSize)
+				return 0
+			}
 
 			mem := mod.Memory()
 			if mem == nil {
 				return 0
 			}
 
-			byteLen := uint64(count) * BlockMutationSize
-			raw, ok := mem.Read(ptr, uint32(byteLen))
+			byteLen := count * BlockMutationSize
+			raw, ok := mem.Read(ptr, byteLen)
 			if !ok {
 				fmt.Printf("[%s] [WASM ERROR] out of bounds in rockfly_commit_block_batch(ptr=%d, count=%d)\n",
 					p.manifest.Name, ptr, count)
@@ -48,6 +55,11 @@ func (p *WASMPlugin) registerHostABI(ctx context.Context) error {
 			p.mu.RUnlock()
 
 			if handler != nil {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("[%s] [WASM PANIC] batch commit handler panic: %v\n", p.manifest.Name, r)
+					}
+				}()
 				if err := handler(mutations); err != nil {
 					fmt.Printf("[%s] [WASM ERROR] batch commit handler failed: %v\n", p.manifest.Name, err)
 					return 0
@@ -64,6 +76,11 @@ func (p *WASMPlugin) registerHostABI(ctx context.Context) error {
 			p.mu.RUnlock()
 
 			if getter != nil {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("[%s] [WASM PANIC] block getter panic: %v\n", p.manifest.Name, r)
+					}
+				}()
 				return getter(x, y, z)
 			}
 			return 0
@@ -74,6 +91,9 @@ func (p *WASMPlugin) registerHostABI(ctx context.Context) error {
 			mem := mod.Memory()
 			if mem == nil {
 				return
+			}
+			if length > MaxLogMessageLength {
+				length = MaxLogMessageLength
 			}
 			raw, ok := mem.Read(ptr, length)
 			if !ok {
