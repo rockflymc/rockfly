@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/df-mc/dragonfly/server/block"
@@ -129,4 +130,37 @@ func BenchmarkMovementValidator_Validate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = v.Validate(c, nil, oldPos, newPos)
 	}
+}
+
+func TestMovementValidator_NaNAndNilSafety(t *testing.T) {
+	v := NewMovementValidator(DefaultMovementValidationConfig())
+	c := &dummyControllable{id: uuid.New(), pos: mgl64.Vec3{0, 64, 0}, gameMode: world.GameModeSurvival}
+
+	// 1. NaN coordinate injection
+	valid, reason := v.Validate(c, nil, mgl64.Vec3{0, 64, 0}, mgl64.Vec3{0, 64, math.NaN()})
+	if valid {
+		t.Fatal("expected NaN coordinate injection to be rejected")
+	}
+	if reason == "" {
+		t.Fatal("expected rejection reason for NaN injection")
+	}
+
+	// 2. Inf coordinate injection
+	valid, reason = v.Validate(c, nil, mgl64.Vec3{0, 64, 0}, mgl64.Vec3{math.Inf(1), 64, 0})
+	if valid {
+		t.Fatal("expected Inf coordinate injection to be rejected")
+	}
+
+	// 3. Nil validator
+	var nilValidator *MovementValidator
+	valid, _ = nilValidator.Validate(c, nil, mgl64.Vec3{0, 0, 0}, mgl64.Vec3{1, 1, 1})
+	if !valid {
+		t.Fatal("expected true on nil validator")
+	}
+	nilValidator.Clear(uuid.New())
+	nilValidator.Reconcile(nil, nil, mgl64.Vec3{0, 0, 0})
+
+	// 4. Zero-valued validator
+	var zeroValidator MovementValidator
+	zeroValidator.Clear(uuid.New())
 }

@@ -71,6 +71,9 @@ type VegetationPlacer struct {
 
 // NewVegetationPlacer initializes a VegetationPlacer using a BlockRegistry.
 func NewVegetationPlacer(reg world.BlockRegistry) *VegetationPlacer {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &VegetationPlacer{
 		air:   reg.BlockRuntimeID(block.Air{}),
 		grass: reg.BlockRuntimeID(block.Grass{}),
@@ -145,6 +148,9 @@ func absInt(v int) int {
 
 // PlaceTree splats a species-specific tree at local coordinates (lx, lz) atop surfaceY.
 func (p *VegetationPlacer) PlaceTree(c *chunk.Chunk, lx, surfaceY, lz int, treeType TreeType, r *rand.Rand) bool {
+	if p == nil || c == nil || r == nil {
+		return false
+	}
 	if lx < 2 || lx > 13 || lz < 2 || lz > 13 || surfaceY < -50 || surfaceY > 300 {
 		return false
 	}
@@ -287,6 +293,9 @@ func (p *VegetationPlacer) placeLeafDisk(c *chunk.Chunk, cx, y, cz, radius int, 
 
 // DecorateChunk scatters trees, grass, flowers, cacti, and crops into a chunk column.
 func (p *VegetationPlacer) DecorateChunk(c *chunk.Chunk, chunkX, chunkZ int, seed int64) {
+	if p == nil || c == nil {
+		return
+	}
 	chunkSeed := uint64(seed) ^ (uint64(chunkX) * 0x3a19b3) ^ (uint64(chunkZ) * 0x712a4f)
 	r := rand.New(rand.NewPCG(chunkSeed, chunkSeed^0x1a84f3e5b7c9d012))
 

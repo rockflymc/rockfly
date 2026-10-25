@@ -134,3 +134,41 @@ func BenchmarkPacketThrottler_Allow(b *testing.B) {
 		_, _ = throttler.Allow()
 	}
 }
+
+func TestNBTGuard_NilAndZeroSafety(t *testing.T) {
+	// 1. Nil guard checks
+	var nilGuard *NBTGuard
+	if err := nilGuard.ValidateRawData([]byte("test")); err != nil {
+		t.Fatalf("expected nil error on nil guard ValidateRawData, got: %v", err)
+	}
+	m, err := nilGuard.DecodeSafe(nil, nbt.LittleEndian)
+	if m != nil || err != nil {
+		t.Fatalf("expected nil result on nil guard DecodeSafe")
+	}
+	if err := nilGuard.ValidateSignText(nil); err != nil {
+		t.Fatalf("expected nil error on nil guard ValidateSignText")
+	}
+	if err := nilGuard.ValidateBookPages(nil); err != nil {
+		t.Fatalf("expected nil error on nil guard ValidateBookPages")
+	}
+
+	// 2. Zero-valued guard
+	var zeroGuard NBTGuard
+	if err := zeroGuard.ValidateRawData(make([]byte, 100)); err != nil {
+		t.Fatalf("expected zeroGuard to use fallback default limits, got: %v", err)
+	}
+
+	// 3. Nil throttler
+	var nilThrottler *PacketThrottler
+	allowed, err := nilThrottler.Allow()
+	if !allowed || err != nil {
+		t.Fatalf("expected true, nil on nil throttler Allow")
+	}
+
+	// 4. Zero-valued throttler
+	var zeroThrottler PacketThrottler
+	allowed, err = zeroThrottler.Allow()
+	if !allowed || err != nil {
+		t.Fatalf("expected true, nil on zero throttler Allow")
+	}
+}

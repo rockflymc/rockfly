@@ -13,6 +13,7 @@ func OverworldTargets() []Target {
 		{Params: Parameters{Temperature: -0.3, Humidity: 0.0, Continentalness: -1.2, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.DeepColdOcean{}},
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -1.2, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.DeepOcean{}},
 		{Params: Parameters{Temperature: 0.4, Humidity: 0.0, Continentalness: -1.2, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.DeepLukewarmOcean{}},
+		{Params: Parameters{Temperature: 0.8, Humidity: 0.0, Continentalness: -1.2, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.DeepWarmOcean{}},
 
 		// Oceans (Normal Continentalness in [-1.05, -0.455])
 		{Params: Parameters{Temperature: -0.7, Humidity: 0.0, Continentalness: -0.7, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.FrozenOcean{}},
@@ -26,6 +27,10 @@ func OverworldTargets() []Target {
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -0.3, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.Beach{}},
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -0.3, Erosion: -0.6, Weirdness: 0.0, Depth: 0.0}, Biome: biome.StonyShore{}},
 		{Params: Parameters{Temperature: 0.8, Humidity: -0.5, Continentalness: -0.3, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.Desert{}},
+
+		// Rivers & Valleys (Weirdness Ridges / Continental Valleys)
+		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -0.1, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.River{}},
+		{Params: Parameters{Temperature: -0.7, Humidity: 0.0, Continentalness: -0.1, Erosion: 0.0, Weirdness: 0.0, Depth: 0.0}, Biome: biome.FrozenRiver{}},
 
 		// Freezing Inland (Temperature <= -0.45)
 		{Params: Parameters{Temperature: -0.7, Humidity: -0.3, Continentalness: 0.1, Erosion: 0.2, Weirdness: 0.0, Depth: 0.0}, Biome: biome.SnowyPlains{}},
@@ -72,11 +77,14 @@ func OverworldTargets() []Target {
 		{Params: Parameters{Temperature: -0.7, Humidity: 0.0, Continentalness: 0.3, Erosion: -0.9, Weirdness: 0.0, Depth: 0.0}, Biome: biome.FrozenPeaks{}},
 		{Params: Parameters{Temperature: 0.4, Humidity: 0.0, Continentalness: 0.3, Erosion: -0.9, Weirdness: 0.0, Depth: 0.0}, Biome: biome.StonyPeaks{}},
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: 0.3, Erosion: -0.6, Weirdness: -0.5, Depth: 0.0}, Biome: biome.WindsweptHills{}},
+		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: 0.3, Erosion: -0.8, Weirdness: -0.7, Depth: 0.0}, Biome: biome.WindsweptGravellyHills{}},
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.4, Continentalness: 0.3, Erosion: -0.6, Weirdness: -0.5, Depth: 0.0}, Biome: biome.WindsweptForest{}},
 		{Params: Parameters{Temperature: 0.7, Humidity: 0.0, Continentalness: 0.3, Erosion: -0.6, Weirdness: -0.5, Depth: 0.0}, Biome: biome.WindsweptSavanna{}},
+		{Params: Parameters{Temperature: 0.0, Humidity: 0.3, Continentalness: 0.2, Erosion: 0.0, Weirdness: 0.3, Depth: 0.0}, Biome: biome.WoodedHills{}},
 
 		// Rare Island Biomes
 		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -1.3, Erosion: 0.0, Weirdness: 0.9, Depth: 0.0}, Biome: biome.MushroomFields{}},
+		{Params: Parameters{Temperature: 0.0, Humidity: 0.0, Continentalness: -1.0, Erosion: 0.0, Weirdness: 0.9, Depth: 0.0}, Biome: biome.MushroomFieldShore{}},
 
 		// Subterranean Cave Biomes (Depth >= 0.25)
 		{Params: Parameters{Temperature: 0.2, Humidity: 0.5, Continentalness: 0.0, Erosion: 0.0, Weirdness: 0.0, Depth: 0.4}, Biome: biome.LushCaves{}},

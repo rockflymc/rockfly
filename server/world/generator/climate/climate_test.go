@@ -72,6 +72,14 @@ func TestVoronoiBiomeAt(t *testing.T) {
 	}
 }
 
+func TestEmptyTargetsFallback(t *testing.T) {
+	s := climate.NewSamplerWithTargets(42, []climate.Target{})
+	b := s.ClosestBiome(climate.Parameters{})
+	if b == nil {
+		t.Fatalf("expected non-nil default biome on empty targets")
+	}
+}
+
 func TestOverworldTargetsCompleteness(t *testing.T) {
 	targets := climate.OverworldTargets()
 	if len(targets) < 20 {
@@ -81,6 +89,7 @@ func TestOverworldTargetsCompleteness(t *testing.T) {
 	foundPlains := false
 	foundDesert := false
 	foundOcean := false
+	foundRiver := false
 
 	for _, target := range targets {
 		switch target.Biome.(type) {
@@ -90,11 +99,13 @@ func TestOverworldTargetsCompleteness(t *testing.T) {
 			foundDesert = true
 		case biome.Ocean:
 			foundOcean = true
+		case biome.River:
+			foundRiver = true
 		}
 	}
 
-	if !foundPlains || !foundDesert || !foundOcean {
-		t.Fatalf("missing essential biomes: plains=%v, desert=%v, ocean=%v", foundPlains, foundDesert, foundOcean)
+	if !foundPlains || !foundDesert || !foundOcean || !foundRiver {
+		t.Fatalf("missing essential biomes: plains=%v, desert=%v, ocean=%v, river=%v", foundPlains, foundDesert, foundOcean, foundRiver)
 	}
 }
 

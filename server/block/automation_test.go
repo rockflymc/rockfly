@@ -284,3 +284,67 @@ func BenchmarkCrafter_ComparatorSignal(b *testing.B) {
 		_ = c.CalculateComparatorSignal()
 	}
 }
+
+func TestAutomation_NilAndBoundarySafety(t *testing.T) {
+	obs := Observer{Facing: cube.FaceNorth}
+	disp := NewDispenser()
+	drop := NewDropper()
+	craft := NewCrafter()
+
+	// 1. Nil Tx safety
+	obs.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	obs.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+
+	disp.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	disp.RedstonePowerAction(cube.Pos{0, 0, 0}, nil, 0, 15)
+	disp.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	disp.Dispense(cube.Pos{0, 0, 0}, nil)
+	disp.AddViewer(nil, nil, cube.Pos{0, 0, 0})
+	disp.RemoveViewer(nil, nil, cube.Pos{0, 0, 0})
+
+	drop.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	drop.RedstonePowerAction(cube.Pos{0, 0, 0}, nil, 0, 15)
+	drop.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	drop.Drop(cube.Pos{0, 0, 0}, nil)
+	drop.AddViewer(nil, nil, cube.Pos{0, 0, 0})
+	drop.RemoveViewer(nil, nil, cube.Pos{0, 0, 0})
+
+	craft.NeighbourUpdateTick(cube.Pos{0, 0, 0}, cube.Pos{0, 0, 0}, nil)
+	craft.RedstonePowerAction(cube.Pos{0, 0, 0}, nil, 0, 15)
+	craft.ScheduledTick(cube.Pos{0, 0, 0}, nil, nil)
+	craft.Craft(cube.Pos{0, 0, 0}, nil)
+	craft.AddViewer(nil, nil, cube.Pos{0, 0, 0})
+	craft.RemoveViewer(nil, nil, cube.Pos{0, 0, 0})
+
+	// Slot bounds
+	craft.SetSlotDisabled(-1, true)
+	craft.SetSlotDisabled(10, true)
+	if craft.IsSlotDisabled(-1) || craft.IsSlotDisabled(10) {
+		t.Fatal("expected out of bounds slots to be false")
+	}
+
+	// 2. Out of bounds safety in real world
+	w := newTestWorld()
+	w.Do(func(tx *world.Tx) {
+		r := tx.Range()
+		outPos := cube.Pos{0, r.Max() + 10, 0}
+
+		obs.NeighbourUpdateTick(outPos, outPos, tx)
+		obs.ScheduledTick(outPos, tx, nil)
+
+		disp.NeighbourUpdateTick(outPos, outPos, tx)
+		disp.RedstonePowerAction(outPos, tx, 0, 15)
+		disp.ScheduledTick(outPos, tx, nil)
+		disp.Dispense(outPos, tx)
+
+		drop.NeighbourUpdateTick(outPos, outPos, tx)
+		drop.RedstonePowerAction(outPos, tx, 0, 15)
+		drop.ScheduledTick(outPos, tx, nil)
+		drop.Drop(outPos, tx)
+
+		craft.NeighbourUpdateTick(outPos, outPos, tx)
+		craft.RedstonePowerAction(outPos, tx, 0, 15)
+		craft.ScheduledTick(outPos, tx, nil)
+		craft.Craft(outPos, tx)
+	}).Wait(context.Background())
+}

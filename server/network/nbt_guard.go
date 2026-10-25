@@ -65,14 +65,27 @@ func NewNBTGuard(conf NBTGuardConfig) *NBTGuard {
 
 // ValidateRawData verifies that the raw byte buffer is within permissible size bounds.
 func (g *NBTGuard) ValidateRawData(data []byte) error {
-	if len(data) > g.conf.MaxPayloadSize {
-		return fmt.Errorf("%w: payload size %d exceeds limit %d", ErrOversizedPayload, len(data), g.conf.MaxPayloadSize)
+	if g == nil {
+		return nil
+	}
+	limit := g.conf.MaxPayloadSize
+	if limit <= 0 {
+		limit = DefaultNBTGuardConfig().MaxPayloadSize
+	}
+	if len(data) > limit {
+		return fmt.Errorf("%w: payload size %d exceeds limit %d", ErrOversizedPayload, len(data), limit)
 	}
 	return nil
 }
 
 // DecodeSafe safely unmarshals an NBT payload enforcing depth, element, and allocation bounds.
 func (g *NBTGuard) DecodeSafe(data []byte, encoding nbt.Encoding) (map[string]any, error) {
+	if g == nil {
+		return nil, nil
+	}
+	if len(data) == 0 {
+		return make(map[string]any), nil
+	}
 	if err := g.ValidateRawData(data); err != nil {
 		return nil, err
 	}
@@ -92,26 +105,46 @@ func (g *NBTGuard) DecodeSafe(data []byte, encoding nbt.Encoding) (map[string]an
 
 // validateValue recursively traverses decoded NBT values ensuring depth and size constraints.
 func (g *NBTGuard) validateValue(v any, depth int) error {
-	if depth > g.conf.MaxDepth {
-		return fmt.Errorf("%w: current depth %d > max %d", ErrMaxDepthExceeded, depth, g.conf.MaxDepth)
+	if g == nil {
+		return nil
+	}
+	maxDepth := g.conf.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = DefaultNBTGuardConfig().MaxDepth
+	}
+	if depth > maxDepth {
+		return fmt.Errorf("%w: current depth %d > max %d", ErrMaxDepthExceeded, depth, maxDepth)
+	}
+
+	maxElements := g.conf.MaxElements
+	if maxElements <= 0 {
+		maxElements = DefaultNBTGuardConfig().MaxElements
+	}
+	maxStrLen := g.conf.MaxStringLength
+	if maxStrLen <= 0 {
+		maxStrLen = DefaultNBTGuardConfig().MaxStringLength
+	}
+	maxPayload := g.conf.MaxPayloadSize
+	if maxPayload <= 0 {
+		maxPayload = DefaultNBTGuardConfig().MaxPayloadSize
 	}
 
 	switch val := v.(type) {
 	case map[string]any:
-		if len(val) > g.conf.MaxElements {
-			return fmt.Errorf("%w: map has %d elements (max %d)", ErrElementLimitExceeded, len(val), g.conf.MaxElements)
+		if len(val) > maxElements {
+			return fmt.Errorf("%w: map has %d elements (max %d)", ErrElementLimitExceeded, len(val), maxElements)
 		}
 		for k, child := range val {
-			if len(k) > g.conf.MaxStringLength {
-				return fmt.Errorf("%w: tag key length %d exceeds max %d", ErrOversizedPayload, len(k), g.conf.MaxStringLength)
+			if len(k) > maxStrLen {
+				return fmt.Errorf("%w: tag key length %d exceeds max %d", ErrOversizedPayload, len(k), maxStrLen)
 			}
 			if err := g.validateValue(child, depth+1); err != nil {
 				return err
 			}
 		}
 	case []any:
-		if len(val) > g.conf.MaxElements {
-			return fmt.Errorf("%w: list has %d elements (max %d)", ErrElementLimitExceeded, len(val), g.conf.MaxElements)
+		if len(val) > maxElements {
+			return fmt.Errorf("%w: list has %d elements (max %d)", ErrElementLimitExceeded, len(val), maxElements)
 		}
 		for _, child := range val {
 			if err := g.validateValue(child, depth+1); err != nil {
@@ -119,12 +152,12 @@ func (g *NBTGuard) validateValue(v any, depth int) error {
 			}
 		}
 	case string:
-		if len(val) > g.conf.MaxStringLength {
-			return fmt.Errorf("%w: string length %d exceeds max %d", ErrOversizedPayload, len(val), g.conf.MaxStringLength)
+		if len(val) > maxStrLen {
+			return fmt.Errorf("%w: string length %d exceeds max %d", ErrOversizedPayload, len(val), maxStrLen)
 		}
 	case []byte:
-		if len(val) > g.conf.MaxPayloadSize {
-			return fmt.Errorf("%w: byte array size %d exceeds max %d", ErrOversizedPayload, len(val), g.conf.MaxPayloadSize)
+		if len(val) > maxPayload {
+			return fmt.Errorf("%w: byte array size %d exceeds max %d", ErrOversizedPayload, len(val), maxPayload)
 		}
 	}
 
@@ -133,9 +166,16 @@ func (g *NBTGuard) validateValue(v any, depth int) error {
 
 // ValidateSignText validates text written to signs, rejecting lines exceeding MaxSignLineLength.
 func (g *NBTGuard) ValidateSignText(lines []string) error {
+	if g == nil {
+		return nil
+	}
+	limit := g.conf.MaxSignLineLength
+	if limit <= 0 {
+		limit = DefaultNBTGuardConfig().MaxSignLineLength
+	}
 	for i, line := range lines {
-		if len(line) > g.conf.MaxSignLineLength {
-			return fmt.Errorf("%w: sign line %d has %d chars (max %d)", ErrOversizedPayload, i, len(line), g.conf.MaxSignLineLength)
+		if len(line) > limit {
+			return fmt.Errorf("%w: sign line %d has %d chars (max %d)", ErrOversizedPayload, i, len(line), limit)
 		}
 	}
 	return nil
@@ -143,12 +183,24 @@ func (g *NBTGuard) ValidateSignText(lines []string) error {
 
 // ValidateBookPages validates book & quill contents against page count and page length limits.
 func (g *NBTGuard) ValidateBookPages(pages []string) error {
-	if len(pages) > g.conf.MaxBookPages {
-		return fmt.Errorf("%w: book has %d pages (max %d)", ErrOversizedPayload, len(pages), g.conf.MaxBookPages)
+	if g == nil {
+		return nil
+	}
+	maxPages := g.conf.MaxBookPages
+	if maxPages <= 0 {
+		maxPages = DefaultNBTGuardConfig().MaxBookPages
+	}
+	maxPageLen := g.conf.MaxBookPageLength
+	if maxPageLen <= 0 {
+		maxPageLen = DefaultNBTGuardConfig().MaxBookPageLength
+	}
+
+	if len(pages) > maxPages {
+		return fmt.Errorf("%w: book has %d pages (max %d)", ErrOversizedPayload, len(pages), maxPages)
 	}
 	for i, page := range pages {
-		if len(page) > g.conf.MaxBookPageLength {
-			return fmt.Errorf("%w: book page %d has %d chars (max %d)", ErrOversizedPayload, i, len(page), g.conf.MaxBookPageLength)
+		if len(page) > maxPageLen {
+			return fmt.Errorf("%w: book page %d has %d chars (max %d)", ErrOversizedPayload, i, len(page), maxPageLen)
 		}
 	}
 	return nil
@@ -177,20 +229,28 @@ func NewPacketThrottler(maxPerSecond int) *PacketThrottler {
 // Allow increments the incoming packet count and returns true if within allowable thresholds.
 // If packet rate exceeds limit, returns false with an error.
 func (t *PacketThrottler) Allow() (bool, error) {
+	if t == nil {
+		return true, nil
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	limit := t.maxPerSecond
+	if limit <= 0 {
+		limit = 500
+	}
+
 	now := time.Now()
-	if now.Sub(t.windowStart) >= time.Second {
+	if t.windowStart.IsZero() || now.Sub(t.windowStart) >= time.Second {
 		t.windowStart = now
 		t.count = 1
 		return true, nil
 	}
 
 	t.count++
-	if t.count > t.maxPerSecond {
+	if t.count > limit {
 		t.violations++
-		return false, fmt.Errorf("%w: received %d pkts/sec (max %d)", ErrPacketRateExceeded, t.count, t.maxPerSecond)
+		return false, fmt.Errorf("%w: received %d pkts/sec (max %d)", ErrPacketRateExceeded, t.count, limit)
 	}
 
 	return true, nil

@@ -31,8 +31,14 @@ func NewAntiDupeGuard() *AntiDupeGuard {
 // - Empty action sets
 // - Container detachment / rapid-close race condition
 func (g *AntiDupeGuard) ValidateRequest(s *Session, req protocol.ItemStackRequest) error {
+	if g == nil {
+		return nil
+	}
 	if len(req.Actions) == 0 {
 		return fmt.Errorf("empty item stack request actions")
+	}
+	if s == nil || s.conn == nil {
+		return fmt.Errorf("nil session or connection in item stack request")
 	}
 
 	id := s.conn.IdentityData().Identity
@@ -44,6 +50,13 @@ func (g *AntiDupeGuard) ValidateRequest(s *Session, req protocol.ItemStackReques
 	now := time.Now()
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	if g.lastAction == nil {
+		g.lastAction = make(map[uuid.UUID]time.Time)
+	}
+	if g.actionCounts == nil {
+		g.actionCounts = make(map[uuid.UUID]int)
+	}
 
 	last, exists := g.lastAction[uid]
 	if exists && now.Sub(last) < time.Second {
@@ -74,23 +87,38 @@ func (g *AntiDupeGuard) ValidateCount(count byte) (int, error) {
 // ResyncContainer sends an authoritative full container and inventory content update to the client
 // after a failed or rejected transaction, wiping any client-side ghost or duplicated items.
 func (g *AntiDupeGuard) ResyncContainer(s *Session, tx *world.Tx, containerID byte) {
-	if s == nil {
+	if g == nil || s == nil || s.conn == nil {
 		return
 	}
 
 	if inv, _ := s.invByID(int32(containerID), tx); inv != nil {
 		s.sendInv(inv, uint32(containerID))
 	}
-	s.sendInv(s.inv, protocol.WindowIDInventory)
-	s.sendInv(s.ui, protocol.WindowIDUI)
-	s.sendInv(s.offHand, protocol.WindowIDOffHand)
-	s.sendInv(s.armour.Inventory(), protocol.WindowIDArmour)
+	if s.inv != nil {
+		s.sendInv(s.inv, protocol.WindowIDInventory)
+	}
+	if s.ui != nil {
+		s.sendInv(s.ui, protocol.WindowIDUI)
+	}
+	if s.offHand != nil {
+		s.sendInv(s.offHand, protocol.WindowIDOffHand)
+	}
+	if s.armour != nil && s.armour.Inventory() != nil {
+		s.sendInv(s.armour.Inventory(), protocol.WindowIDArmour)
+	}
 }
 
 // Clear removes tracked rate-limiting data for a disconnected session.
 func (g *AntiDupeGuard) Clear(id uuid.UUID) {
+	if g == nil {
+		return
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	delete(g.lastAction, id)
-	delete(g.actionCounts, id)
+	if g.lastAction != nil {
+		delete(g.lastAction, id)
+	}
+	if g.actionCounts != nil {
+		delete(g.actionCounts, id)
+	}
 }

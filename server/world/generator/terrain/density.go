@@ -15,6 +15,9 @@ type DensityEvaluator struct {
 
 // NewDensityEvaluator constructs a 3D terrain density router for the given world seed and climate sampler.
 func NewDensityEvaluator(seed int64, sampler *climate.Sampler) *DensityEvaluator {
+	if sampler == nil {
+		sampler = climate.NewSampler(seed)
+	}
 	return &DensityEvaluator{
 		contSpline:     CanonicalContinentalnessSpline(),
 		erosionSpline:  CanonicalErosionSpline(),
@@ -26,6 +29,9 @@ func NewDensityEvaluator(seed int64, sampler *climate.Sampler) *DensityEvaluator
 // DensityAt computes the 3D density at voxel coordinates (x, y, z).
 // Values >= 0 represent solid stone/terrain; values < 0 represent empty space / atmosphere / liquid.
 func (d *DensityEvaluator) DensityAt(x, y, z int) float64 {
+	if d == nil {
+		return 0
+	}
 	params := d.climateSampler.Sample(x, y, z)
 
 	baseHeight := d.contSpline.Compute(params.Continentalness) + d.erosionSpline.Compute(params.Erosion)

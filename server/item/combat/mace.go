@@ -47,14 +47,20 @@ func (Mace) DurabilityInfo() item.DurabilityInfo {
 
 // IsSmashAttack checks whether a fall distance exceeds the 1.5-block trigger threshold.
 func (Mace) IsSmashAttack(fallDistance float64) bool {
+	if math.IsNaN(fallDistance) || math.IsInf(fallDistance, 0) {
+		return false
+	}
 	return fallDistance > 1.5
 }
 
 // CalculateSmashDamage computes the total attack damage delivered based on fall height and Density enchantment.
 func (m Mace) CalculateSmashDamage(fallDistance float64) float64 {
 	base := 6.0
-	if fallDistance <= 1.5 {
+	if math.IsNaN(fallDistance) || math.IsInf(fallDistance, 0) || fallDistance <= 1.5 {
 		return base
+	}
+	if fallDistance > 1024.0 {
+		fallDistance = 1024.0
 	}
 
 	fall := fallDistance - 1.5
@@ -78,8 +84,14 @@ func (m Mace) CalculateSmashDamage(fallDistance float64) float64 {
 	}
 
 	// Density enchantment: adds +0.5 damage per block fallen per level
-	if m.DensityLevel > 0 {
-		bonus += fall * 0.5 * float64(m.DensityLevel)
+	density := m.DensityLevel
+	if density < 0 {
+		density = 0
+	} else if density > 255 {
+		density = 255
+	}
+	if density > 0 {
+		bonus += fall * 0.5 * float64(density)
 	}
 
 	return base + bonus
@@ -87,16 +99,20 @@ func (m Mace) CalculateSmashDamage(fallDistance float64) float64 {
 
 // WindBurstBounceVelocity returns the upward bounce velocity imparted on the attacker upon smash hit.
 func (m Mace) WindBurstBounceVelocity() float64 {
-	if m.WindBurstLevel <= 0 {
+	wb := m.WindBurstLevel
+	if wb <= 0 {
 		return 0.8 // Standard smash bounce
 	}
+	if wb > 10 {
+		wb = 10
+	}
 	// Wind Burst I: 0.8, II: 1.2, III: 1.6
-	return 0.8 + 0.4*float64(m.WindBurstLevel)
+	return 0.8 + 0.4*float64(wb)
 }
 
 // ExecuteSmashAOE inflicts radial knockback and shockwave impulse to surrounding entities within 3.0 blocks.
 func (Mace) ExecuteSmashAOE(tx *world.Tx, center mgl64.Vec3, primaryTarget world.Entity) {
-	if tx == nil {
+	if tx == nil || math.IsNaN(center[0]) || math.IsNaN(center[1]) || math.IsNaN(center[2]) {
 		return
 	}
 	radius := 3.0
@@ -106,7 +122,11 @@ func (Mace) ExecuteSmashAOE(tx *world.Tx, center mgl64.Vec3, primaryTarget world
 		if e == primaryTarget {
 			continue
 		}
-		diff := e.Position().Sub(center)
+		pos := e.Position()
+		if math.IsNaN(pos[0]) || math.IsNaN(pos[1]) || math.IsNaN(pos[2]) {
+			continue
+		}
+		diff := pos.Sub(center)
 		dist := diff.Len()
 		if dist <= radius && dist > 0.001 {
 			factor := 1.0 - (dist / radius)

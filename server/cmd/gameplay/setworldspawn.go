@@ -33,6 +33,11 @@ func (c SetWorldSpawn) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		pos = customPos
 	}
 
+	if !isValidVec3(pos) {
+		o.Errorf("Coordinates must not contain NaN or Infinity")
+		return
+	}
+
 	blockPos := cube.PosFromVec3(pos)
 	tx.World().SetSpawn(blockPos)
 	o.Printf("Set the world spawn to %d, %d, %d", blockPos[0], blockPos[1], blockPos[2])

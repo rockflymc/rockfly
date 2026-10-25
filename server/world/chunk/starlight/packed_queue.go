@@ -22,7 +22,10 @@ func NewPackedQueue(capacity int) *PackedQueue {
 
 // Push appends a node to the queue, growing the underlying buffer if needed.
 func (q *PackedQueue) Push(n PackedNode) {
-	if q.size == len(q.nodes) {
+	if q == nil {
+		return
+	}
+	if len(q.nodes) == 0 || q.size == len(q.nodes) {
 		q.grow()
 	}
 	q.nodes[q.tail] = n
@@ -32,7 +35,7 @@ func (q *PackedQueue) Push(n PackedNode) {
 
 // Pop removes and returns the oldest node from the queue.
 func (q *PackedQueue) Pop() (PackedNode, bool) {
-	if q.size == 0 {
+	if q == nil || q.size == 0 {
 		return 0, false
 	}
 	n := q.nodes[q.head]
@@ -43,16 +46,22 @@ func (q *PackedQueue) Pop() (PackedNode, bool) {
 
 // Empty returns whether the queue has no elements.
 func (q *PackedQueue) Empty() bool {
-	return q.size == 0
+	return q == nil || q.size == 0
 }
 
 // Len returns the number of nodes currently in the queue.
 func (q *PackedQueue) Len() int {
+	if q == nil {
+		return 0
+	}
 	return q.size
 }
 
 // Clear resets the queue indices without releasing allocated slice capacity.
 func (q *PackedQueue) Clear() {
+	if q == nil {
+		return
+	}
 	q.head = 0
 	q.tail = 0
 	q.size = 0
@@ -60,13 +69,21 @@ func (q *PackedQueue) Clear() {
 
 // grow doubles the ring buffer storage and aligns head at index 0.
 func (q *PackedQueue) grow() {
+	if q == nil {
+		return
+	}
 	newCap := len(q.nodes) << 1
+	if newCap < 16 {
+		newCap = 16
+	}
 	newNodes := make([]PackedNode, newCap)
-	if q.head < q.tail {
-		copy(newNodes, q.nodes[q.head:q.tail])
-	} else {
-		n := copy(newNodes, q.nodes[q.head:])
-		copy(newNodes[n:], q.nodes[:q.tail])
+	if len(q.nodes) > 0 {
+		if q.head < q.tail {
+			copy(newNodes, q.nodes[q.head:q.tail])
+		} else {
+			n := copy(newNodes, q.nodes[q.head:])
+			copy(newNodes[n:], q.nodes[:q.tail])
+		}
 	}
 	q.head = 0
 	q.tail = q.size

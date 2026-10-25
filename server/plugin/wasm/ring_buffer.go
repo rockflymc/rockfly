@@ -85,9 +85,50 @@ type LinearRingBuffer struct {
 	Tail     uint32
 }
 
-// NewLinearRingBuffer initializes a new ring buffer description.
+// NewLinearRingBuffer initializes a new ring buffer description with given capacity.
 func NewLinearRingBuffer(capacity uint32) *LinearRingBuffer {
 	return &LinearRingBuffer{
 		Capacity: capacity,
 	}
+}
+
+// Used returns the number of active items currently stored in the ring buffer.
+func (r *LinearRingBuffer) Used() uint32 {
+	if r.Head >= r.Tail {
+		return r.Head - r.Tail
+	}
+	return r.Capacity - (r.Tail - r.Head)
+}
+
+// Available returns the number of free slots remaining in the ring buffer.
+func (r *LinearRingBuffer) Available() uint32 {
+	if r.Capacity == 0 {
+		return 0
+	}
+	return r.Capacity - 1 - r.Used()
+}
+
+// Push reserves space for count items and returns the starting index.
+func (r *LinearRingBuffer) Push(count uint32) (uint32, error) {
+	if count > r.Available() {
+		return 0, fmt.Errorf("%w: capacity %d, needed %d", ErrBatchTooLarge, r.Capacity, count)
+	}
+	start := r.Head
+	r.Head = (r.Head + count) % r.Capacity
+	return start, nil
+}
+
+// Advance commits/consumes count items from the buffer.
+func (r *LinearRingBuffer) Advance(count uint32) error {
+	if count > r.Used() {
+		return fmt.Errorf("wasm ring buffer underflow: used %d, requested advance %d", r.Used(), count)
+	}
+	r.Tail = (r.Tail + count) % r.Capacity
+	return nil
+}
+
+// Reset clears the ring buffer indices.
+func (r *LinearRingBuffer) Reset() {
+	r.Head = 0
+	r.Tail = 0
 }

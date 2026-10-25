@@ -18,6 +18,9 @@ func NewFireTracker() *FireTracker {
 
 // OnFireDuration returns the remaining duration the entity is on fire.
 func (f *FireTracker) OnFireDuration() time.Duration {
+	if f == nil {
+		return 0
+	}
 	ticks := f.fireTicks.Load()
 	if ticks <= 0 {
 		return 0
@@ -27,6 +30,9 @@ func (f *FireTracker) OnFireDuration() time.Duration {
 
 // SetOnFire sets the duration the entity should burn.
 func (f *FireTracker) SetOnFire(d time.Duration) {
+	if f == nil {
+		return
+	}
 	ticks := int64(d.Milliseconds() / 50)
 	if ticks < 0 {
 		ticks = 0
@@ -36,12 +42,18 @@ func (f *FireTracker) SetOnFire(d time.Duration) {
 
 // Extinguish immediately stops combustion.
 func (f *FireTracker) Extinguish() {
+	if f == nil {
+		return
+	}
 	f.fireTicks.Store(0)
 	f.burnTimer.Store(0)
 }
 
 // Tick decrements combustion ticks and inflicts 1.0 fire damage every 20 ticks (1 second).
 func (f *FireTracker) Tick() (burning bool, damage float64) {
+	if f == nil {
+		return false, 0
+	}
 	rem := f.fireTicks.Add(-1)
 	if rem < 0 {
 		f.fireTicks.Store(0)

@@ -14,8 +14,10 @@ type Honey struct {
 
 // EntityLand reduces fall damage when landing on a honey block.
 func (Honey) EntityLand(_ cube.Pos, _ *world.Tx, e world.Entity, distance *float64) {
-	if _, ok := e.(fallDistanceEntity); ok {
-		*distance = 0
+	if distance != nil {
+		if _, ok := e.(fallDistanceEntity); ok {
+			*distance = 0
+		}
 	}
 }
 

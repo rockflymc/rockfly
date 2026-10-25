@@ -40,6 +40,12 @@ func (DaylightDetector) RedstoneWeaklyPowersBlocks() bool {
 
 // RedstonePower emits signal strength from all faces according to the current light power.
 func (d DaylightDetector) RedstonePower(_ cube.Pos, _ *world.Tx, _ cube.Face) int {
+	if d.Power < 0 {
+		return 0
+	}
+	if d.Power > 15 {
+		return 15
+	}
 	return d.Power
 }
 
@@ -50,13 +56,18 @@ func (d DaylightDetector) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face c
 
 // CalculateDaylightPower computes the redstone signal (0..15) based on world time of day.
 func CalculateDaylightPower(time int, inverted bool) int {
-	t := time % 24000
+	t := (time%24000 + 24000) % 24000
 	rad := float64(t-6000) * 2.0 * math.Pi / 24000.0
 	cos := math.Cos(rad)
 	if cos < 0 {
 		cos = 0
 	}
 	level := int(math.Round(cos * 15.0))
+	if level < 0 {
+		level = 0
+	} else if level > 15 {
+		level = 15
+	}
 	if inverted {
 		return 15 - level
 	}
@@ -65,6 +76,9 @@ func CalculateDaylightPower(time int, inverted bool) int {
 
 // Activate toggles inverted mode when a player interacts with the detector.
 func (d DaylightDetector) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.User, _ *item.UseContext) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	d.Inverted = !d.Inverted
 	d.Power = CalculateDaylightPower(tx.World().Time(), d.Inverted)
 	tx.SetBlock(pos, d, nil)
@@ -85,11 +99,17 @@ func (d DaylightDetector) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3,
 
 // NeighbourUpdateTick recalculates daylight power and schedules updates.
 func (d DaylightDetector) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	tx.ScheduleBlockUpdate(pos, d, redstoneTicks(10))
 }
 
 // ScheduledTick periodically updates the emitted daylight signal.
 func (d DaylightDetector) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	newPower := CalculateDaylightPower(tx.World().Time(), d.Inverted)
 	if newPower != d.Power {
 		d.Power = newPower

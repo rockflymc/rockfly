@@ -28,6 +28,7 @@ type Engine struct {
 	workers int
 	tasks   chan LightTask
 	wg      sync.WaitGroup
+	mu      sync.RWMutex
 	closed  atomic.Bool
 }
 
@@ -58,40 +59,57 @@ func NewEngine(workers int) *Engine {
 func (e *Engine) workerLoop() {
 	defer e.wg.Done()
 	for task := range e.tasks {
-		if task.Action != nil {
-			task.Action()
-		}
-		if task.OnDone != nil {
-			task.OnDone()
-		}
+		e.runTask(task)
+	}
+}
+
+func (e *Engine) runTask(task LightTask) {
+	defer func() {
+		_ = recover()
+	}()
+	if task.Action != nil {
+		task.Action()
+	}
+	if task.OnDone != nil {
+		task.OnDone()
 	}
 }
 
 // Submit queues a lighting task to be processed asynchronously by worker goroutines.
 // Returns false if the engine has been shut down.
 func (e *Engine) Submit(task LightTask) bool {
-	if e.closed.Load() {
+	if e == nil {
+		e.runTask(task)
 		return false
 	}
+
+	e.mu.RLock()
+	if e.closed.Load() {
+		e.mu.RUnlock()
+		return false
+	}
+
 	select {
 	case e.tasks <- task:
+		e.mu.RUnlock()
 		return true
 	default:
+		e.mu.RUnlock()
 		// Task queue full: execute synchronously as graceful fallback to avoid dropping light updates.
-		if task.Action != nil {
-			task.Action()
-		}
-		if task.OnDone != nil {
-			task.OnDone()
-		}
+		e.runTask(task)
 		return true
 	}
 }
 
 // Close gracefully stops all worker goroutines after draining queued tasks.
 func (e *Engine) Close() {
+	if e == nil {
+		return
+	}
 	if e.closed.CompareAndSwap(false, true) {
+		e.mu.Lock()
 		close(e.tasks)
+		e.mu.Unlock()
 		e.wg.Wait()
 	}
 }

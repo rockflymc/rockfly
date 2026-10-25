@@ -1,6 +1,7 @@
 package boss
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 
@@ -40,21 +41,40 @@ func NewWither(handle *world.EntityHandle) *Wither {
 
 // InvulnerableTicks returns remaining spawning invulnerability ticks.
 func (w *Wither) InvulnerableTicks() int32 {
+	if w == nil {
+		return 0
+	}
 	return w.invulnerable.Load()
 }
 
 // SetInvulnerableTicks manually updates invulnerability countdown.
 func (w *Wither) SetInvulnerableTicks(ticks int32) {
+	if w == nil {
+		return
+	}
+	if ticks < 0 {
+		ticks = 0
+	}
 	w.invulnerable.Store(ticks)
 }
 
 // WitherArmor returns true if the Wither is protected by its <= 50% health shield.
 func (w *Wither) WitherArmor() bool {
-	return w.Health() <= (w.MaxHealth() * 0.5)
+	if w == nil || w.Boss == nil || w.LivingEntity == nil {
+		return false
+	}
+	maxH := w.MaxHealth()
+	if maxH <= 0 || math.IsNaN(maxH) {
+		return false
+	}
+	return w.Health() <= (maxH * 0.5)
 }
 
 // SetMainTarget updates the central head's target.
 func (w *Wither) SetMainTarget(target ai.Mob) {
+	if w == nil {
+		return
+	}
 	w.mu.Lock()
 	w.mainTarget = target
 	w.mu.Unlock()
@@ -62,6 +82,9 @@ func (w *Wither) SetMainTarget(target ai.Mob) {
 
 // MainTarget returns the primary target.
 func (w *Wither) MainTarget() ai.Mob {
+	if w == nil {
+		return nil
+	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.mainTarget
@@ -69,6 +92,9 @@ func (w *Wither) MainTarget() ai.Mob {
 
 // SetSecondaryTargets updates the independent left and right head targets.
 func (w *Wither) SetSecondaryTargets(left, right ai.Mob) {
+	if w == nil {
+		return
+	}
 	w.mu.Lock()
 	w.leftTarget = left
 	w.rightTarget = right
@@ -77,6 +103,9 @@ func (w *Wither) SetSecondaryTargets(left, right ai.Mob) {
 
 // SecondaryTargets returns the current side head targets.
 func (w *Wither) SecondaryTargets() (left, right ai.Mob) {
+	if w == nil {
+		return nil, nil
+	}
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.leftTarget, w.rightTarget
@@ -84,6 +113,9 @@ func (w *Wither) SecondaryTargets() (left, right ai.Mob) {
 
 // Hurt overrides LivingEntity.Hurt to enforce invulnerability and Wither Armor projectile immunity.
 func (w *Wither) Hurt(damage float64, src world.DamageSource) (float64, bool) {
+	if w == nil || w.Boss == nil || w.LivingEntity == nil {
+		return 0, false
+	}
 	if w.invulnerable.Load() > 0 {
 		return 0, false
 	}
@@ -108,8 +140,14 @@ func (w *Wither) Drops() []item.Stack {
 
 // Tick coordinates invulnerability countdown, head target tracking, and combat logic.
 func (w *Wither) Tick(tx *world.Tx, current int64) {
+	if w == nil || w.Boss == nil || w.LivingEntity == nil {
+		return
+	}
 	if w.invulnerable.Load() > 0 {
-		w.invulnerable.Add(-1)
+		rem := w.invulnerable.Add(-1)
+		if rem < 0 {
+			w.invulnerable.Store(0)
+		}
 		w.Heal(1.0, nil)
 		w.SyncBarHealth()
 		return
@@ -131,6 +169,9 @@ func (w *Wither) BoundingBox() cube.BBox {
 
 // Metadata generates the Bedrock protocol entity metadata snapshot.
 func (w *Wither) Metadata() protocol.EntityMetadata {
+	if w == nil || w.LivingEntity == nil {
+		return entity.NewMetadataBuilder().Build()
+	}
 	builder := entity.NewMetadataBuilder().
 		SyncLiving(w.LivingEntity).
 		SetDimensions(0.9, 3.5).

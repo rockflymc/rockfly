@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"sync"
 	"time"
 
 	"github.com/df-mc/dragonfly/server/cmd"
@@ -12,11 +13,22 @@ type PluginReloader interface {
 	ReloadAll() (int, time.Duration, error)
 }
 
-var globalReloader PluginReloader
+var (
+	globalReloaderMu sync.RWMutex
+	globalReloader   PluginReloader
+)
 
 // SetPluginReloader configures the reloader implementation for the /reload command.
 func SetPluginReloader(r PluginReloader) {
+	globalReloaderMu.Lock()
+	defer globalReloaderMu.Unlock()
 	globalReloader = r
+}
+
+func getPluginReloader() PluginReloader {
+	globalReloaderMu.RLock()
+	defer globalReloaderMu.RUnlock()
+	return globalReloader
 }
 
 func registerReload() {
@@ -35,12 +47,13 @@ func (c Reload) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 		o.Errorf("You do not have permission to execute this command.")
 		return
 	}
-	if globalReloader == nil {
+	reloader := getPluginReloader()
+	if reloader == nil {
 		o.Errorf("No plugin manager registered on this server.")
 		return
 	}
 
-	count, dur, err := globalReloader.ReloadAll()
+	count, dur, err := reloader.ReloadAll()
 	if err != nil {
 		o.Errorf("Failed to reload plugins: %v", err)
 		return

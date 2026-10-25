@@ -28,6 +28,9 @@ func NewEnd(seed int64) *End {
 
 // NewEndWithRegistry constructs an End dimension generator using a specific BlockRegistry.
 func NewEndWithRegistry(seed int64, reg world.BlockRegistry) *End {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	return &End{
 		seed:     seed,
 		noise3D:  noise.NewOctavePerlinFromSeed(seed^0x456e6449, 3, 2.0, 0.5), // "EndI"
@@ -38,6 +41,9 @@ func NewEndWithRegistry(seed int64, reg world.BlockRegistry) *End {
 
 // GenerateChunk generates the Central Island, void ring, and outer floating End islands.
 func (e *End) GenerateChunk(pos world.ChunkPos, c *chunk.Chunk) {
+	if e == nil || c == nil {
+		return
+	}
 	originX := int(pos.X()) << 4
 	originZ := int(pos.Z()) << 4
 

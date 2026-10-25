@@ -123,3 +123,42 @@ func TestLiquidFlowEventCancellation(t *testing.T) {
 		}
 	})
 }
+
+func TestWorldLiquidFlowTypedBusAndBridgeReuse(t *testing.T) {
+	w := world.Config{}.New()
+
+	// Test bridge reuse
+	h1 := w.Handler()
+	h2 := w.Handler()
+	if h1 != h2 {
+		t.Errorf("expected w.Handler() to return cached bridge instance")
+	}
+
+	var flowDispatched bool
+	sub := world.LiquidFlowBus.Subscribe(func(e *world.LiquidFlowEvent) {
+		flowDispatched = true
+		if e.Into.Y() <= 5 {
+			e.Cancel()
+		}
+	})
+	defer sub.Unsubscribe()
+
+	execWorld(w, func(tx *world.Tx) {
+		ctx := tx.Event()
+		w.Handler().HandleLiquidFlow(ctx, cube.Pos{0, 6, 0}, cube.Pos{0, 5, 0}, nil, nil)
+		if !ctx.Cancelled() {
+			t.Fatalf("expected LiquidFlowBus to cancel flow into Y=5")
+		}
+		if !flowDispatched {
+			t.Fatalf("expected LiquidFlowBus listener to be executed")
+		}
+	})
+
+	// Test nil World safety
+	var nilWorld *world.World
+	nh := nilWorld.Handler()
+	if nh == nil {
+		t.Fatalf("expected nilWorld.Handler() to return NopHandler, got nil")
+	}
+	nh.HandleLiquidFlow(nil, cube.Pos{}, cube.Pos{}, nil, nil)
+}

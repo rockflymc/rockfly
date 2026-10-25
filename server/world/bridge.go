@@ -26,12 +26,20 @@ func (b *eventWorldBridge) inner() Handler {
 }
 
 func (b *eventWorldBridge) HandleLiquidFlow(ctx *Context, from, into cube.Pos, liquid Liquid, replaced Block) {
+	if b == nil || b.w == nil {
+		return
+	}
 	e := &LiquidFlowEvent{
 		World:    b.w,
 		From:     from,
 		Into:     into,
 		Liquid:   liquid,
 		Replaced: replaced,
+	}
+	LiquidFlowBus.Publish(e)
+	if e.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {
@@ -205,9 +213,17 @@ func (b *eventWorldBridge) HandleExplosion(ctx *Context, src ExplosionSource, en
 }
 
 func (b *eventWorldBridge) HandleRedstoneUpdate(ctx *Context, update RedstoneUpdate) {
+	if b == nil || b.w == nil {
+		return
+	}
 	e := &RedstoneUpdateEvent{
 		World:  b.w,
 		Update: update,
+	}
+	RedstoneUpdateBus.Publish(e)
+	if e.Cancelled() {
+		ctx.Cancel()
+		return
 	}
 	event.DefaultBus().Publish(e)
 	if e.Cancelled() {

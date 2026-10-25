@@ -73,6 +73,9 @@ func (c Comparator) BreakInfo() BreakInfo {
 
 // UseOnBlock places the comparator on top of a solid surface facing away from the player.
 func (c Comparator) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.Tx, user item.User, ctx *item.UseContext) bool {
+	if tx == nil {
+		return false
+	}
 	pos, face, used := firstReplaceable(tx, pos, face, c)
 	if !used || face != cube.FaceUp {
 		return false
@@ -80,7 +83,9 @@ func (c Comparator) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *w
 	if !comparatorSupported(tx, pos) {
 		return false
 	}
-	c.Facing = user.Rotation().Direction().Opposite()
+	if user != nil {
+		c.Facing = user.Rotation().Direction().Opposite()
+	}
 	c.Mode = ComparatorComparison
 	c.Powered = false
 	c.OutputSignal = 0
@@ -97,6 +102,9 @@ func (c Comparator) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *w
 
 // Activate right-clicks toggle the comparator between Comparison and Subtraction modes.
 func (c Comparator) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.User, _ *item.UseContext) bool {
+	if tx == nil {
+		return false
+	}
 	if c.Mode == ComparatorComparison {
 		c.Mode = ComparatorSubtraction
 	} else {
@@ -110,6 +118,9 @@ func (c Comparator) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, _ item.Use
 
 // NeighbourUpdateTick checks for breakage when unsupported and schedules output recalculation.
 func (c Comparator) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil {
+		return
+	}
 	if !comparatorSupported(tx, pos) {
 		breakBlock(c, pos, tx)
 		return
@@ -141,8 +152,22 @@ func (c Comparator) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // calculateOutput determines the target output signal based on mode, rear input, and side inputs.
 func (c Comparator) calculateOutput(pos cube.Pos, tx *world.Tx) int {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return 0
+	}
 	rearSignal := c.readRearSignal(pos, tx)
+	if rearSignal < 0 {
+		rearSignal = 0
+	} else if rearSignal > 15 {
+		rearSignal = 15
+	}
+
 	sideSignal := c.readMaxSideSignal(pos, tx)
+	if sideSignal < 0 {
+		sideSignal = 0
+	} else if sideSignal > 15 {
+		sideSignal = 15
+	}
 
 	if c.Mode == ComparatorComparison {
 		if rearSignal >= sideSignal {
@@ -154,12 +179,17 @@ func (c Comparator) calculateOutput(pos cube.Pos, tx *world.Tx) int {
 	diff := rearSignal - sideSignal
 	if diff < 0 {
 		return 0
+	} else if diff > 15 {
+		return 15
 	}
 	return diff
 }
 
 // readRearSignal reads the strongest signal arriving from the rear (redstone wire/source or container fullness).
 func (c Comparator) readRearSignal(pos cube.Pos, tx *world.Tx) int {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return 0
+	}
 	rearFace := c.Facing.Opposite().Face()
 	rearPos := pos.Side(rearFace)
 	if rearPos.OutOfBounds(tx.Range()) {
@@ -172,7 +202,7 @@ func (c Comparator) readRearSignal(pos cube.Pos, tx *world.Tx) int {
 	// In vanilla, containers can also be read through an opaque solid conductive block directly behind the comparator.
 	if containerSignal == 0 {
 		rearBlock := tx.Block(rearPos)
-		if rearBlock.Model().FaceSolid(rearPos, rearFace, tx) {
+		if rearBlock != nil && rearBlock.Model().FaceSolid(rearPos, rearFace, tx) {
 			behindSolidPos := rearPos.Side(rearFace)
 			if !behindSolidPos.OutOfBounds(tx.Range()) {
 				containerSignal = c.readContainerAt(behindSolidPos, tx)
@@ -188,7 +218,13 @@ func (c Comparator) readRearSignal(pos cube.Pos, tx *world.Tx) int {
 
 // readContainerAt inspects pos for a container or lectern and computes its comparator signal.
 func (Comparator) readContainerAt(pos cube.Pos, tx *world.Tx) int {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return 0
+	}
 	b := tx.Block(pos)
+	if b == nil {
+		return 0
+	}
 	if container, ok := b.(Container); ok {
 		return CalculateContainerSignal(container.Inventory(tx, pos))
 	}
@@ -200,6 +236,9 @@ func (Comparator) readContainerAt(pos cube.Pos, tx *world.Tx) int {
 
 // readMaxSideSignal reads the strongest signal arriving from the left or right sides.
 func (c Comparator) readMaxSideSignal(pos cube.Pos, tx *world.Tx) int {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return 0
+	}
 	leftFace := c.Facing.RotateLeft().Face()
 	rightFace := c.Facing.RotateRight().Face()
 
@@ -215,10 +254,13 @@ func (c Comparator) readMaxSideSignal(pos cube.Pos, tx *world.Tx) int {
 
 // readDirectSideComponent inspects sidePos for an adjacent repeater or comparator facing towardsThis.
 func (Comparator) readDirectSideComponent(sidePos cube.Pos, tx *world.Tx, towardsThis cube.Face) int {
-	if sidePos.OutOfBounds(tx.Range()) {
+	if tx == nil || sidePos.OutOfBounds(tx.Range()) {
 		return 0
 	}
 	b := tx.Block(sidePos)
+	if b == nil {
+		return 0
+	}
 	if r, ok := b.(Repeater); ok {
 		if r.Facing.Face() == towardsThis && r.Powered {
 			return 15
@@ -226,7 +268,13 @@ func (Comparator) readDirectSideComponent(sidePos cube.Pos, tx *world.Tx, toward
 	}
 	if comp, ok := b.(Comparator); ok {
 		if comp.Facing.Face() == towardsThis && comp.Powered {
-			return comp.OutputSignal
+			sig := comp.OutputSignal
+			if sig < 0 {
+				return 0
+			} else if sig > 15 {
+				return 15
+			}
+			return sig
 		}
 	}
 	return 0
@@ -235,7 +283,13 @@ func (Comparator) readDirectSideComponent(sidePos cube.Pos, tx *world.Tx, toward
 // RedstonePower emits signal strength from the front face when powered.
 func (c Comparator) RedstonePower(_ cube.Pos, _ *world.Tx, face cube.Face) int {
 	if c.Powered && face == c.Facing.Face() {
-		return c.OutputSignal
+		sig := c.OutputSignal
+		if sig < 0 {
+			return 0
+		} else if sig > 15 {
+			return 15
+		}
+		return sig
 	}
 	return 0
 }
@@ -279,7 +333,13 @@ func (c Comparator) EncodeNBT() map[string]any {
 
 // DecodeNBT deserializes comparator output signal strength from block entity NBT.
 func (c Comparator) DecodeNBT(m map[string]any) any {
-	c.OutputSignal = int(nbtconv.Int32(m, "OutputSignal"))
+	sig := int(nbtconv.Int32(m, "OutputSignal"))
+	if sig < 0 {
+		sig = 0
+	} else if sig > 15 {
+		sig = 15
+	}
+	c.OutputSignal = sig
 	c.Powered = c.OutputSignal > 0
 	return c
 }
@@ -298,11 +358,18 @@ func allComparators() (comparators []world.Block) {
 
 // comparatorSupported reports whether the support block beneath pos can hold a comparator.
 func comparatorSupported(tx *world.Tx, pos cube.Pos) bool {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
 	below := pos.Side(cube.FaceDown)
 	if below.OutOfBounds(tx.Range()) {
 		return false
 	}
-	return tx.Block(below).Model().FaceSolid(below, cube.FaceUp, tx)
+	b := tx.Block(below)
+	if b == nil {
+		return false
+	}
+	return b.Model().FaceSolid(below, cube.FaceUp, tx)
 }
 
 // CalculateContainerSignal computes the 0-15 comparator signal strength from a container inventory.
@@ -322,18 +389,31 @@ func CalculateContainerSignal(inv *inventory.Inventory) int {
 		if stack.Empty() {
 			continue
 		}
+		count := stack.Count()
+		if count <= 0 {
+			continue
+		}
 		empty = false
 		maxCount := stack.MaxCount()
 		if maxCount <= 0 {
 			maxCount = 64
 		}
-		itemCount += float64(stack.Count()) / float64(maxCount)
+		itemCount += float64(count) / float64(maxCount)
 	}
 	if empty {
 		return 0
 	}
 	factor := itemCount / float64(len(slots))
-	return int(math.Floor(1.0 + factor*14.0))
+	if math.IsNaN(factor) || math.IsInf(factor, 0) || factor <= 0 {
+		return 0
+	}
+	val := int(math.Floor(1.0 + factor*14.0))
+	if val < 0 {
+		return 0
+	} else if val > 15 {
+		return 15
+	}
+	return val
 }
 
 // CalculateLecternSignal computes the comparator signal strength from a lectern with a book.
@@ -349,5 +429,17 @@ func CalculateLecternSignal(l Lectern) int {
 	if pages <= 1 {
 		return 15
 	}
-	return int(math.Floor(float64(l.Page)/float64(pages-1)*14.0)) + 1
+	page := l.Page
+	if page < 0 {
+		page = 0
+	} else if page >= pages {
+		page = pages - 1
+	}
+	val := int(math.Floor(float64(page)/float64(pages-1)*14.0)) + 1
+	if val < 0 {
+		return 0
+	} else if val > 15 {
+		return 15
+	}
+	return val
 }

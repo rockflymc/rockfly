@@ -235,6 +235,34 @@ func TestNavigator_AsyncDispatch(t *testing.T) {
 	}
 }
 
+func TestNavigator_NaNAndNilSafety(t *testing.T) {
+	w := newMockWorld()
+	nav := NewNavigator(2, DefaultAStarConfig())
+	defer nav.Close()
+
+	// Nil provider should not panic
+	path := nav.FindPathSync(mgl64.Vec3{1, 1, 1}, mgl64.Vec3{5, 1, 1}, nil)
+	if path != nil {
+		t.Fatalf("expected nil path with nil provider")
+	}
+
+	// NaN coordinates should not panic or hang
+	nan := 1e300*1e300 - 1e300*1e300
+	path = nav.FindPathSync(mgl64.Vec3{nan, 1, 1}, mgl64.Vec3{5, 1, 1}, w)
+	if path != nil {
+		t.Fatalf("expected nil path with NaN coordinate")
+	}
+
+	// Nil navigator should not panic
+	var nilNav *Navigator
+	if nilNav.Submit(PathRequest{}) {
+		t.Fatalf("nil navigator submit should return false")
+	}
+	if nilNav.FindPathSync(mgl64.Vec3{1, 1, 1}, mgl64.Vec3{5, 1, 1}, w) != nil {
+		t.Fatalf("nil navigator FindPathSync should return nil")
+	}
+}
+
 func BenchmarkAStar_Maze(b *testing.B) {
 	w := newMockWorld()
 	w.buildFloor(0, 0, 30, 30, 0)

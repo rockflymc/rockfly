@@ -1,6 +1,7 @@
 package block
 
 import (
+	"math"
 	"math/rand/v2"
 	"sync"
 
@@ -71,6 +72,9 @@ func (d Dropper) Inventory(*world.Tx, cube.Pos) *inventory.Inventory {
 
 // AddViewer adds a viewer to the dropper.
 func (d Dropper) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if d.viewerMu == nil {
+		return
+	}
 	d.viewerMu.Lock()
 	defer d.viewerMu.Unlock()
 	d.viewers[v] = struct{}{}
@@ -78,6 +82,9 @@ func (d Dropper) AddViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
 
 // RemoveViewer removes a viewer from the dropper.
 func (d Dropper) RemoveViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
+	if d.viewerMu == nil {
+		return
+	}
 	d.viewerMu.Lock()
 	defer d.viewerMu.Unlock()
 	delete(d.viewers, v)
@@ -107,6 +114,9 @@ func (d Dropper) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *worl
 
 // NeighbourUpdateTick schedules an ejection tick on redstone rising edges.
 func (d Dropper) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	powered := tx.RedstonePower(pos) > 0
 	if powered && !d.Triggered {
 		tx.ScheduleBlockUpdate(pos, d, redstoneTicks(2))
@@ -118,6 +128,9 @@ func (d Dropper) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 // RedstonePowerAction schedules an ejection on direct redstone power changes.
 func (d Dropper) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, newPower int) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if newPower > 0 && oldPower == 0 && !d.Triggered {
 		tx.ScheduleBlockUpdate(pos, d, redstoneTicks(2))
 	} else if newPower == 0 && oldPower > 0 && d.Triggered {
@@ -128,6 +141,9 @@ func (d Dropper) RedstonePowerAction(pos cube.Pos, tx *world.Tx, oldPower, newPo
 
 // ScheduledTick executes the dropping action on a redstone pulse.
 func (d Dropper) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	if tx.RedstonePower(pos) > 0 {
 		d.Triggered = true
 		tx.SetBlock(pos, d, nil)
@@ -137,7 +153,12 @@ func (d Dropper) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // Drop chooses a random item from the dropper and transfers it into an adjacent container or drops it.
 func (d Dropper) Drop(pos cube.Pos, tx *world.Tx) {
-	if d.inventory == nil {
+	if d.inventory == nil || tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
+
+	targetPos := pos.Side(d.Facing)
+	if targetPos.OutOfBounds(tx.Range()) {
 		return
 	}
 
@@ -157,14 +178,15 @@ func (d Dropper) Drop(pos cube.Pos, tx *world.Tx) {
 	toDrop := st.Grow(-st.Count() + 1)
 	_ = d.inventory.SetItem(chosenSlot, st.Grow(-1))
 
-	targetPos := pos.Side(d.Facing)
 	targetBlock := tx.Block(targetPos)
 
 	// Check if target block has an inventory to transfer into.
 	if c, ok := targetBlock.(Container); ok {
-		if _, err := c.Inventory(tx, targetPos).AddItem(toDrop); err == nil {
-			tx.PlaySound(pos.Vec3Centre(), sound.Click{})
-			return
+		if inv := c.Inventory(tx, targetPos); inv != nil {
+			if _, err := inv.AddItem(toDrop); err == nil {
+				tx.PlaySound(pos.Vec3Centre(), sound.Click{})
+				return
+			}
 		}
 	}
 
@@ -178,6 +200,9 @@ func (d Dropper) Drop(pos cube.Pos, tx *world.Tx) {
 // BreakInfo ...
 func (d Dropper) BreakInfo() BreakInfo {
 	return newBreakInfo(3.5, pickaxeHarvestable, pickaxeEffective, oneOf(NewDropper())).withBreakHandler(func(pos cube.Pos, tx *world.Tx, _ item.User) {
+		if tx == nil || pos.OutOfBounds(tx.Range()) {
+			return
+		}
 		if d.inventory != nil {
 			for _, i := range d.inventory.Clear() {
 				dropItem(tx, i, pos.Vec3Centre())
@@ -240,7 +265,13 @@ func allDroppers() (droppers []world.Block) {
 
 // dropItemWithVelocity spawns a dropped item entity into the world with initial velocity.
 func dropItemWithVelocity(tx *world.Tx, it item.Stack, pos mgl64.Vec3, vel mgl64.Vec3) {
-	if it.Empty() {
+	if it.Empty() || tx == nil {
+		return
+	}
+	if math.IsNaN(pos[0]) || math.IsNaN(pos[1]) || math.IsNaN(pos[2]) || math.IsInf(pos[0], 0) || math.IsInf(pos[1], 0) || math.IsInf(pos[2], 0) {
+		return
+	}
+	if math.IsNaN(vel[0]) || math.IsNaN(vel[1]) || math.IsNaN(vel[2]) || math.IsInf(vel[0], 0) || math.IsInf(vel[1], 0) || math.IsInf(vel[2], 0) {
 		return
 	}
 	create := tx.World().EntityRegistry().Config().Item

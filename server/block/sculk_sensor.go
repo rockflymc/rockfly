@@ -70,10 +70,17 @@ func (s SculkSensor) RedstonePower(pos cube.Pos, _ *world.Tx, _ cube.Face) int {
 	if s.Phase == 1 {
 		sculkMu.RLock()
 		defer sculkMu.RUnlock()
-		if f, ok := sculkFreqMap[pos]; ok {
-			return f
+		f := s.Frequency
+		if mapped, ok := sculkFreqMap[pos]; ok {
+			f = mapped
 		}
-		return s.Frequency
+		if f < 0 {
+			return 0
+		}
+		if f > 15 {
+			return 15
+		}
+		return f
 	}
 	return 0
 }
@@ -85,7 +92,11 @@ func (s SculkSensor) RedstoneStrongPower(pos cube.Pos, tx *world.Tx, face cube.F
 
 // Trigger activates the sculk sensor with the given vibration frequency if not on cooldown or filtered.
 func (s SculkSensor) Trigger(pos cube.Pos, tx *world.Tx, freq VibrationFrequency) bool {
-	if s.Phase != 0 {
+	if s.Phase != 0 || tx == nil || pos.OutOfBounds(tx.Range()) {
+		return false
+	}
+	intFreq := int(freq)
+	if intFreq < 1 || intFreq > 15 {
 		return false
 	}
 
@@ -93,17 +104,17 @@ func (s SculkSensor) Trigger(pos cube.Pos, tx *world.Tx, freq VibrationFrequency
 	if s.Calibrated {
 		rearFace := s.Facing.Opposite().Face()
 		requiredFreq := tx.RedstonePowerFrom(pos, rearFace)
-		if requiredFreq > 0 && int(freq) != requiredFreq {
+		if requiredFreq > 0 && intFreq != requiredFreq {
 			return false
 		}
 	}
 
 	sculkMu.Lock()
-	sculkFreqMap[pos] = int(freq)
+	sculkFreqMap[pos] = intFreq
 	sculkMu.Unlock()
 
 	s.Phase = 1
-	s.Frequency = int(freq)
+	s.Frequency = intFreq
 	tx.SetBlock(pos, s, nil)
 	tx.ScheduleBlockUpdate(pos, s, redstoneTicks(15)) // 30 game ticks
 	tx.PlaySound(pos.Vec3Centre(), sound.Click{})
@@ -112,6 +123,9 @@ func (s SculkSensor) Trigger(pos cube.Pos, tx *world.Tx, freq VibrationFrequency
 
 // ScheduledTick advances the phase from Active -> Cooldown -> Inactive.
 func (s SculkSensor) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	switch s.Phase {
 	case 1:
 		// Active -> Cooldown (Phase 2, 10 game ticks)
@@ -143,7 +157,11 @@ func (s SculkSensor) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *
 
 // BreakInfo ...
 func (s SculkSensor) BreakInfo() BreakInfo {
-	return newBreakInfo(1.5, alwaysHarvestable, hoeEffective, oneOf(s))
+	return newBreakInfo(1.5, alwaysHarvestable, hoeEffective, oneOf(s)).withBreakHandler(func(pos cube.Pos, _ *world.Tx, _ item.User) {
+		sculkMu.Lock()
+		delete(sculkFreqMap, pos)
+		sculkMu.Unlock()
+	})
 }
 
 // EncodeItem ...

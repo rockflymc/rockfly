@@ -108,6 +108,9 @@ func (e *PPMSEngine) Config() PPMSConfig {
 // EvaluateBudgets calculates isolated category mob budgets for each active player.
 // Each entity is attributed to its nearest player within the simulation radius.
 func (e *PPMSEngine) EvaluateBudgets(players []PlayerSnapshot, mobs []TrackedMobSnapshot) map[uuid.UUID]*PlayerMobBudget {
+	if e == nil {
+		return nil
+	}
 	e.mu.RLock()
 	simRadiusSq := e.conf.SimulationRadius * e.conf.SimulationRadius
 	e.mu.RUnlock()
@@ -125,10 +128,20 @@ func (e *PPMSEngine) EvaluateBudgets(players []PlayerSnapshot, mobs []TrackedMob
 	}
 
 	for _, mob := range mobs {
+		if math.IsNaN(mob.Pos[0]) || math.IsNaN(mob.Pos[1]) || math.IsNaN(mob.Pos[2]) ||
+			math.IsInf(mob.Pos[0], 0) || math.IsInf(mob.Pos[1], 0) || math.IsInf(mob.Pos[2], 0) {
+			continue
+		}
+
 		var nearestID uuid.UUID
 		minDistSq := math.MaxFloat64
 
 		for _, p := range players {
+			if math.IsNaN(p.Pos[0]) || math.IsNaN(p.Pos[1]) || math.IsNaN(p.Pos[2]) ||
+				math.IsInf(p.Pos[0], 0) || math.IsInf(p.Pos[1], 0) || math.IsInf(p.Pos[2], 0) {
+				continue
+			}
+
 			dx := mob.Pos[0] - p.Pos[0]
 			dy := mob.Pos[1] - p.Pos[1]
 			dz := mob.Pos[2] - p.Pos[2]
@@ -152,11 +165,18 @@ func (e *PPMSEngine) EvaluateBudgets(players []PlayerSnapshot, mobs []TrackedMob
 
 // CanSpawnForPlayer checks if the player's personal quota in category is not saturated.
 func (e *PPMSEngine) CanSpawnForPlayer(playerID uuid.UUID, category MobCategory, budgets map[uuid.UUID]*PlayerMobBudget) bool {
+	if e == nil {
+		return false
+	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
 	if !e.conf.Enabled {
 		return true
+	}
+
+	if budgets == nil {
+		return false
 	}
 
 	budget, ok := budgets[playerID]
@@ -171,6 +191,9 @@ func (e *PPMSEngine) CanSpawnForPlayer(playerID uuid.UUID, category MobCategory,
 }
 
 func (e *PPMSEngine) capFor(cat MobCategory) int {
+	if e == nil {
+		return 0
+	}
 	switch cat {
 	case CategoryHostile:
 		return e.conf.Caps.Hostile
@@ -188,6 +211,14 @@ func (e *PPMSEngine) capFor(cat MobCategory) int {
 // ShouldDespawn evaluates despawn eligibility based on distance from nearest player.
 // Returns (despawn bool, instant bool).
 func (e *PPMSEngine) ShouldDespawn(mobPos mgl64.Vec3, players []PlayerSnapshot, ageTicks int64, rngFloat float64) (despawn bool, instant bool) {
+	if e == nil {
+		return false, false
+	}
+	if math.IsNaN(mobPos[0]) || math.IsNaN(mobPos[1]) || math.IsNaN(mobPos[2]) ||
+		math.IsInf(mobPos[0], 0) || math.IsInf(mobPos[1], 0) || math.IsInf(mobPos[2], 0) {
+		return true, true
+	}
+
 	e.mu.RLock()
 	despawnRadSq := e.conf.DespawnRadius * e.conf.DespawnRadius
 	softDistSq := e.conf.SoftDespawnDist * e.conf.SoftDespawnDist
@@ -199,6 +230,10 @@ func (e *PPMSEngine) ShouldDespawn(mobPos mgl64.Vec3, players []PlayerSnapshot, 
 
 	closestDistSq := math.MaxFloat64
 	for _, p := range players {
+		if math.IsNaN(p.Pos[0]) || math.IsNaN(p.Pos[1]) || math.IsNaN(p.Pos[2]) ||
+			math.IsInf(p.Pos[0], 0) || math.IsInf(p.Pos[1], 0) || math.IsInf(p.Pos[2], 0) {
+			continue
+		}
 		dx := mobPos[0] - p.Pos[0]
 		dy := mobPos[1] - p.Pos[1]
 		dz := mobPos[2] - p.Pos[2]
@@ -219,7 +254,7 @@ func (e *PPMSEngine) ShouldDespawn(mobPos mgl64.Vec3, players []PlayerSnapshot, 
 	}
 
 	// 3. Between 32 and 128 blocks -> 1/800 chance per tick after 30 seconds (600 ticks)
-	if ageTicks > 600 && rngFloat < (1.0/800.0) {
+	if !math.IsNaN(rngFloat) && ageTicks > 600 && rngFloat < (1.0/800.0) {
 		return true, false
 	}
 
@@ -228,6 +263,14 @@ func (e *PPMSEngine) ShouldDespawn(mobPos mgl64.Vec3, players []PlayerSnapshot, 
 
 // InPlayerSpawnRing verifies if a candidate coordinate is within [minSpawnRadius, maxSpawnRadius] of player.
 func (e *PPMSEngine) InPlayerSpawnRing(candidate cube.Pos, playerPos mgl64.Vec3) bool {
+	if e == nil {
+		return false
+	}
+	if math.IsNaN(playerPos[0]) || math.IsNaN(playerPos[2]) ||
+		math.IsInf(playerPos[0], 0) || math.IsInf(playerPos[2], 0) {
+		return false
+	}
+
 	e.mu.RLock()
 	minR := e.conf.MinSpawnRadius
 	maxR := e.conf.MaxSpawnRadius

@@ -232,6 +232,17 @@ func TestNetherOrePopulation(t *testing.T) {
 	if debrisCount == 0 {
 		t.Fatalf("expected ancient debris to generate in Nether")
 	}
+
+	// Test Nil Safety
+	var nilPlacer *OrePlacer
+	nilPlacer.PlaceChunk(nil, 0, 0, nil, nil)
+	nilPlacer.PlaceVein(nil, 0, 0, 0, OreConfiguration{}, nil)
+
+	var nilOverworld *OverworldOreFeature
+	nilOverworld.Populate(nil, 0, 0, 0)
+
+	var nilNether *NetherOreFeature
+	nilNether.Populate(nil, 0, 0, 0)
 }
 
 func BenchmarkOverworldOrePopulate(b *testing.B) {

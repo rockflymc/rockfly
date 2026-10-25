@@ -65,12 +65,20 @@ func (c EffectGive) Run(src cmd.Source, o *cmd.Output, tx *world.Tx) {
 	}
 
 	seconds := 30
-	if s, ok := c.Seconds.Load(); ok && s > 0 {
+	if s, ok := c.Seconds.Load(); ok {
+		if s <= 0 || s > 1000000 {
+			o.Errorf("Duration must be between 1 and 1000000 seconds (got %d)", s)
+			return
+		}
 		seconds = s
 	}
 
 	level := 1
-	if a, ok := c.Amplifier.Load(); ok && a >= 0 {
+	if a, ok := c.Amplifier.Load(); ok {
+		if a < 0 || a > 255 {
+			o.Errorf("Amplifier must be between 0 and 255 (got %d)", a)
+			return
+		}
 		// In Minecraft commands, amplifier 0 is level 1, amplifier 1 is level 2 (Speed II), etc.
 		level = a + 1
 	}

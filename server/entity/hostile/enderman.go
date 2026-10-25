@@ -79,6 +79,12 @@ func (e *Enderman) SetScreaming(s bool) {
 
 // CheckPlayerStare evaluates whether a player's gaze vector intersects with the Enderman's head.
 func (e *Enderman) CheckPlayerStare(playerPos mgl64.Vec3, playerRot cube.Rotation) bool {
+	if e == nil || e.Dead() {
+		return false
+	}
+	if math.IsNaN(playerRot.Yaw()) || math.IsNaN(playerRot.Pitch()) || math.IsInf(playerRot.Yaw(), 0) || math.IsInf(playerRot.Pitch(), 0) {
+		return false
+	}
 	playerEye := playerPos.Add(mgl64.Vec3{0, 1.62, 0})
 	endermanHead := e.Position().Add(mgl64.Vec3{0, 2.5, 0})
 
@@ -111,6 +117,16 @@ func (e *Enderman) CheckPlayerStare(playerPos mgl64.Vec3, playerRot cube.Rotatio
 
 // Teleport moves the enderman to target coordinate if vertical clearance exists.
 func (e *Enderman) Teleport(tx *world.Tx, dest mgl64.Vec3) bool {
+	if e == nil {
+		return false
+	}
+	if math.IsNaN(dest[0]) || math.IsNaN(dest[1]) || math.IsNaN(dest[2]) ||
+		math.IsInf(dest[0], 0) || math.IsInf(dest[1], 0) || math.IsInf(dest[2], 0) {
+		return false
+	}
+	if dest[1] < -64 || dest[1] > 320 {
+		return false
+	}
 	if tx != nil {
 		pos := cube.PosFromVec3(dest)
 		// Destination floor must be solid, and 3 blocks above must not be solid
@@ -132,6 +148,12 @@ func (e *Enderman) Teleport(tx *world.Tx, dest mgl64.Vec3) bool {
 
 // TeleportRandomly picks a random location within radius and relocates the Enderman.
 func (e *Enderman) TeleportRandomly(tx *world.Tx, radius float64) bool {
+	if e == nil {
+		return false
+	}
+	if radius <= 0 || math.IsNaN(radius) || math.IsInf(radius, 0) {
+		radius = 16.0
+	}
 	currPos := e.Position()
 
 	for attempt := 0; attempt < 16; attempt++ {

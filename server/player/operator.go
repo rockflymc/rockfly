@@ -78,7 +78,7 @@ func (m *OperatorManager) Load() error {
 	return nil
 }
 
-// Save writes operators to ops.json with pretty indentation.
+// Save writes operators to ops.json atomically with pretty indentation.
 func (m *OperatorManager) Save() error {
 	m.mu.RLock()
 	entries := make([]OperatorEntry, 0, len(m.ops))
@@ -92,10 +92,16 @@ func (m *OperatorManager) Save() error {
 		return err
 	}
 
-	if dir := filepath.Dir(m.filePath); dir != "" && dir != "." {
+	dir := filepath.Dir(m.filePath)
+	if dir != "" && dir != "." {
 		_ = os.MkdirAll(dir, 0755)
 	}
-	return os.WriteFile(m.filePath, data, 0644)
+
+	tmpFile := m.filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpFile, m.filePath)
 }
 
 // SetOp adds or updates an operator entry.

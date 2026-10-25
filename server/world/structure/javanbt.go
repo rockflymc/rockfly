@@ -32,6 +32,9 @@ type javaStructureData struct {
 
 // FromJavaNBT parses a raw or gzipped Java Edition structure .nbt buffer into a Template.
 func FromJavaNBT(data []byte, reg world.BlockRegistry) (*Template, error) {
+	if reg == nil {
+		reg = world.DefaultBlockRegistry
+	}
 	// Decompress gzip if present (0x1f, 0x8b)
 	reader := bytes.NewReader(data)
 	var r io.Reader = reader

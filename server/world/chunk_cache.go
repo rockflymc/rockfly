@@ -35,8 +35,15 @@ func NewChunkCache(capacity int) *ChunkCache {
 
 // Get returns the cached Column for the specified ChunkPos, moving it to the front of the LRU list.
 func (c *ChunkCache) Get(pos ChunkPos) (*Column, bool) {
+	if c == nil {
+		return nil, false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.items == nil {
+		return nil, false
+	}
 
 	elem, ok := c.items[pos]
 	if !ok {
@@ -48,8 +55,19 @@ func (c *ChunkCache) Get(pos ChunkPos) (*Column, bool) {
 
 // Put inserts or updates a Column in the cache, evicting the least recently used item if full.
 func (c *ChunkCache) Put(pos ChunkPos, col *Column) {
+	if c == nil || col == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.items == nil || c.evictList == nil {
+		c.items = make(map[ChunkPos]*list.Element)
+		c.evictList = list.New()
+		if c.capacity <= 0 {
+			c.capacity = 512
+		}
+	}
 
 	if elem, ok := c.items[pos]; ok {
 		c.evictList.MoveToFront(elem)
@@ -68,8 +86,15 @@ func (c *ChunkCache) Put(pos ChunkPos, col *Column) {
 
 // Remove removes the chunk at pos from the cache.
 func (c *ChunkCache) Remove(pos ChunkPos) {
+	if c == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.items == nil || c.evictList == nil {
+		return
+	}
 
 	if elem, ok := c.items[pos]; ok {
 		c.evictList.Remove(elem)
@@ -79,18 +104,31 @@ func (c *ChunkCache) Remove(pos ChunkPos) {
 
 // Len returns the number of items currently in the cache.
 func (c *ChunkCache) Len() int {
+	if c == nil {
+		return 0
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.evictList == nil {
+		return 0
+	}
 	return c.evictList.Len()
 }
 
 // Clear flushes all entries from the cache.
 func (c *ChunkCache) Clear() {
+	if c == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.items = make(map[ChunkPos]*list.Element)
-	c.evictList.Init()
+	if c.evictList != nil {
+		c.evictList.Init()
+	} else {
+		c.evictList = list.New()
+	}
 }
 
 // evictOldest removes the least recently used entry. Caller must hold c.mu.

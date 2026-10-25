@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/df-mc/dragonfly/server/cmd/admin"
 	"github.com/df-mc/dragonfly/server/plugin/ts"
 )
@@ -220,5 +222,109 @@ rockfly.events.on("PlayerJoinEvent", rockfly.Priority.Normal, (e) => {
 	dtsPath := filepath.Join(tmpDir, "rockfly.d.ts")
 	if _, err := os.Stat(dtsPath); os.IsNotExist(err) {
 		t.Errorf("rockfly.d.ts was not auto-generated")
+	}
+}
+
+func TestPluginManager_ConcurrentReload(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rockfly_pm_concurrent_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	pluginDir := filepath.Join(tmpDir, "SamplePlugin")
+	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	manifest := `name = "SamplePlugin"
+version = "1.0.0"
+main = "index.ts"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.toml"), []byte(manifest), 0644); err != nil {
+		t.Fatalf("write manifest failed: %v", err)
+	}
+	code := `rockfly.log("SamplePlugin active");`
+	if err := os.WriteFile(filepath.Join(pluginDir, "index.ts"), []byte(code), 0644); err != nil {
+		t.Fatalf("write code failed: %v", err)
+	}
+
+	pm := NewPluginManager(tmpDir)
+	if err := pm.LoadAll(); err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+	if err := pm.EnableAll(); err != nil {
+		t.Fatalf("EnableAll failed: %v", err)
+	}
+
+	// Trigger 5 concurrent reloads
+	const workers = 5
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			_, _, _ = pm.ReloadAll()
+		}()
+	}
+
+	wg.Wait()
+
+	if len(pm.Plugins()) != 1 {
+		t.Fatalf("expected 1 plugin after concurrent reloads, got %d", len(pm.Plugins()))
+	}
+}
+
+func TestPluginManager_DynamicCommandUnregisterOnReload(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rockfly_pm_cmd_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	pluginDir := filepath.Join(tmpDir, "CmdPlugin")
+	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	manifest := `name = "CmdPlugin"
+version = "1.0.0"
+main = "index.ts"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.toml"), []byte(manifest), 0644); err != nil {
+		t.Fatalf("write manifest failed: %v", err)
+	}
+
+	codeV1 := `rockfly.commands.register("tempplugincommand", "Temporary command", (p, args) => {});`
+	if err := os.WriteFile(filepath.Join(pluginDir, "index.ts"), []byte(codeV1), 0644); err != nil {
+		t.Fatalf("write code failed: %v", err)
+	}
+
+	pm := NewPluginManager(tmpDir)
+	if err := pm.LoadAll(); err != nil {
+		t.Fatalf("LoadAll failed: %v", err)
+	}
+	if err := pm.EnableAll(); err != nil {
+		t.Fatalf("EnableAll failed: %v", err)
+	}
+
+	// Verify command registered
+	if _, ok := cmd.ByAlias("tempplugincommand"); !ok {
+		t.Fatalf("expected tempplugincommand to be registered")
+	}
+
+	// Now update plugin to V2 WITHOUT registering the command
+	codeV2 := `rockfly.log("V2 has no command registered");`
+	if err := os.WriteFile(filepath.Join(pluginDir, "index.ts"), []byte(codeV2), 0644); err != nil {
+		t.Fatalf("write code v2 failed: %v", err)
+	}
+
+	// Reload
+	if _, _, err := pm.ReloadAll(); err != nil {
+		t.Fatalf("ReloadAll failed: %v", err)
+	}
+
+	// Verify command was cleaned up and is no longer registered!
+	if _, ok := cmd.ByAlias("tempplugincommand"); ok {
+		t.Fatalf("expected tempplugincommand to be unregistered after reload")
 	}
 }
