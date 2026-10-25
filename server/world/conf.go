@@ -156,6 +156,7 @@ func (conf Config) New() *World {
 		ticketManager:    chunk.NewTicketManager(200),
 		lightingEngine:   starlight.NewEngine(conf.ChunkLoadWorkers),
 		earTracker:       NewEARTracker(conf.EntityActivationRange),
+		spatialGrid:      NewSpatialGrid(),
 		scheduledUpdates: newScheduledTickQueue(s.CurrentTick),
 		redstone:         newRedstoneEngine(s.CurrentTick),
 		entities:         make(map[*EntityHandle]ChunkPos),

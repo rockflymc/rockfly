@@ -240,6 +240,9 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			// for loaders to view it.
 			tx.World().entities[handle] = chunkPos
 			c.Entities = append(c.Entities, handle)
+			if tx.World().spatialGrid != nil {
+				tx.World().spatialGrid.Move(handle, handle.data.Pos)
+			}
 
 			var viewers []Viewer
 

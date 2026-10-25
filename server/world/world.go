@@ -84,6 +84,7 @@ type World struct {
 	ticketManager    *chunk.TicketManager
 	lightingEngine   *starlight.Engine
 	earTracker       *EARTracker
+	spatialGrid      *SpatialGrid
 	neighbourUpdates []neighbourUpdate
 
 	viewerMu sync.Mutex
@@ -146,6 +147,11 @@ func (w *World) TicketManager() *chunk.TicketManager {
 // EARTracker returns the Entity Activation Range tracker of the World.
 func (w *World) EARTracker() *EARTracker {
 	return w.earTracker
+}
+
+// SpatialGrid returns the Spatial Hash Grid entity tracker of the World.
+func (w *World) SpatialGrid() *SpatialGrid {
+	return w.spatialGrid
 }
 
 // ChunkLevel returns the current ticket level of the chunk at pos.
@@ -901,6 +907,9 @@ func (w *World) addEntityAt(tx *Tx, handle *EntityHandle, pos mgl64.Vec3) Entity
 
 	c := tx.chunk(chunkPos)
 	c.Entities, c.modified = append(c.Entities, handle), true
+	if w.spatialGrid != nil {
+		w.spatialGrid.Insert(handle, handle.data.Pos)
+	}
 
 	e := handle.mustEntity(tx)
 	for _, v := range c.viewers {
@@ -933,6 +942,9 @@ func (w *World) removeEntity(e Entity, tx *Tx) *EntityHandle {
 		v.HideEntity(e)
 	}
 	delete(w.entities, handle)
+	if w.spatialGrid != nil {
+		w.spatialGrid.Remove(handle)
+	}
 	handle.unsetAndLockWorld()
 	return handle
 }
@@ -956,6 +968,18 @@ func (w *World) removeEntityFromViewLayers(e Entity) {
 // entitiesWithin returns an iterator that yields all entities contained within
 // the cube.BBox passed.
 func (w *World) entitiesWithin(tx *Tx, box cube.BBox) iter.Seq[Entity] {
+	if w.spatialGrid != nil {
+		return func(yield func(Entity) bool) {
+			w.spatialGrid.Query(box, func(handle *EntityHandle) bool {
+				ent, ok := handle.Entity(tx)
+				if ok && !yield(ent) {
+					return false
+				}
+				return true
+			})
+		}
+	}
+
 	return func(yield func(Entity) bool) {
 		minPos, maxPos := chunkPosFromVec3(box.Min()), chunkPosFromVec3(box.Max())
 
