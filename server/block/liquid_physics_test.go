@@ -18,15 +18,15 @@ type dummyPhysicsEntity struct {
 	sneaking bool
 }
 
-func (d *dummyPhysicsEntity) Close() error                   { return nil }
-func (d *dummyPhysicsEntity) H() *world.EntityHandle         { return nil }
-func (d *dummyPhysicsEntity) Position() mgl64.Vec3           { return d.pos }
-func (d *dummyPhysicsEntity) Rotation() cube.Rotation        { return cube.Rotation{} }
-func (d *dummyPhysicsEntity) Velocity() mgl64.Vec3           { return d.vel }
-func (d *dummyPhysicsEntity) SetVelocity(v mgl64.Vec3)       { d.vel = v }
-func (d *dummyPhysicsEntity) AirSupply() time.Duration       { return d.air }
-func (d *dummyPhysicsEntity) SetAirSupply(a time.Duration)   { d.air = a }
-func (d *dummyPhysicsEntity) Sneaking() bool                 { return d.sneaking }
+func (d *dummyPhysicsEntity) Close() error                 { return nil }
+func (d *dummyPhysicsEntity) H() *world.EntityHandle       { return nil }
+func (d *dummyPhysicsEntity) Position() mgl64.Vec3         { return d.pos }
+func (d *dummyPhysicsEntity) Rotation() cube.Rotation      { return cube.Rotation{} }
+func (d *dummyPhysicsEntity) Velocity() mgl64.Vec3         { return d.vel }
+func (d *dummyPhysicsEntity) SetVelocity(v mgl64.Vec3)     { d.vel = v }
+func (d *dummyPhysicsEntity) AirSupply() time.Duration     { return d.air }
+func (d *dummyPhysicsEntity) SetAirSupply(a time.Duration) { d.air = a }
+func (d *dummyPhysicsEntity) Sneaking() bool               { return d.sneaking }
 
 func TestBubbleColumn_EncodeDecode(t *testing.T) {
 	for _, b := range allBubbleColumns() {

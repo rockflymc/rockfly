@@ -20,10 +20,10 @@ const YOffset = 512
 type PackedNode uint64
 
 const (
-	maskX     = 0x3f                   // 6 bits (0..63)
-	maskY     = 0x7ff                  // 11 bits (0..2047)
-	maskZ     = 0x3f                   // 6 bits (0..63)
-	maskLevel = 0x0f                   // 4 bits (0..15)
+	maskX     = 0x3f  // 6 bits (0..63)
+	maskY     = 0x7ff // 11 bits (0..2047)
+	maskZ     = 0x3f  // 6 bits (0..63)
+	maskLevel = 0x0f  // 4 bits (0..15)
 	flagSky   = PackedNode(1) << 27
 )
 

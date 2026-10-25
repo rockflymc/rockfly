@@ -13,8 +13,8 @@ func TestAntiDupeGuard_ValidateCount(t *testing.T) {
 	guard := NewAntiDupeGuard()
 
 	tests := []struct {
-		count   byte
-		valid   bool
+		count byte
+		valid bool
 	}{
 		{0, false},
 		{1, true},
