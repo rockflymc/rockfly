@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/cmd/admin"
 	"github.com/df-mc/dragonfly/server/console"
 	"github.com/pelletier/go-toml"
 )
@@ -203,6 +204,7 @@ func Bootstrap(opts ...LifecycleOptions) (*Server, error) {
 
 	srv := conf.New()
 	srv.SetupGracefulShutdown(opt.Logger)
+	admin.RegisterAll(srv)
 	return srv, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"net"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -463,6 +464,34 @@ func (srv *Server) wait() {
 // finaliseConn finalises the session.Conn passed and adds it to the incoming
 // channel.
 func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listener) {
+	host, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	if host == "" {
+		host = conn.RemoteAddr().String()
+	}
+	if banned, reason := player.DefaultBanManager().IsIPBanned(host); banned {
+		_ = l.Disconnect(conn, "You are IP-banned from this server: "+reason)
+		srv.conf.Log.Debug("spawn rejected: ip banned", "raddr", conn.RemoteAddr(), "reason", reason)
+		return
+	}
+
+	identity := conn.IdentityData()
+	if banned, reason := player.DefaultBanManager().IsPlayerBanned(identity.DisplayName); banned {
+		_ = l.Disconnect(conn, "You are banned from this server: "+reason)
+		srv.conf.Log.Debug("spawn rejected: player banned by name", "name", identity.DisplayName, "reason", reason)
+		return
+	}
+	if banned, reason := player.DefaultBanManager().IsPlayerBanned(identity.Identity); banned {
+		_ = l.Disconnect(conn, "You are banned from this server: "+reason)
+		srv.conf.Log.Debug("spawn rejected: player banned by uuid", "uuid", identity.Identity, "reason", reason)
+		return
+	}
+
+	if srv.PlayerCount() >= srv.MaxPlayerCount() && !player.DefaultOperatorManager().BypassesPlayerLimit(identity.DisplayName) && !player.DefaultOperatorManager().BypassesPlayerLimit(identity.Identity) {
+		_ = l.Disconnect(conn, "Server is full!")
+		srv.conf.Log.Debug("spawn rejected: server full", "raddr", conn.RemoteAddr())
+		return
+	}
+
 	id := uuid.MustParse(conn.IdentityData().Identity)
 	data := srv.defaultGameData()
 

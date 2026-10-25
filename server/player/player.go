@@ -93,6 +93,9 @@ type playerData struct {
 
 	enchantSeed int64
 
+	op      bool
+	opLevel int
+
 	mc           *entity.MovementComputer
 	portalTravel *entity.PortalTravelComputer
 
@@ -152,6 +155,32 @@ func (p *Player) UUID() uuid.UUID {
 // authenticated with XBOX Live.
 func (p *Player) XUID() string {
 	return p.xuid
+}
+
+// Op reports whether the player is a server operator.
+func (p *Player) Op() bool {
+	return p.op
+}
+
+// SetOp updates the operator status of the player.
+func (p *Player) SetOp(op bool) {
+	p.op = op
+	if op && p.opLevel == 0 {
+		p.opLevel = 4
+	} else if !op {
+		p.opLevel = 0
+	}
+}
+
+// OpLevel returns the operator permission level (1-4). Returns 0 if not an operator.
+func (p *Player) OpLevel() int {
+	return p.opLevel
+}
+
+// SetOpLevel sets the operator level (1-4). If level is 0, op status is revoked.
+func (p *Player) SetOpLevel(level int) {
+	p.opLevel = level
+	p.op = level > 0
 }
 
 // DeviceID returns the device ID of the player. If the Player is not connected to a network session, an empty string is
