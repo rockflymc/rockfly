@@ -11,19 +11,25 @@ type SliceMask [4]uint64
 
 // Set marks block at (x, z) in the slice.
 func (m *SliceMask) Set(x, z int) {
-	idx := (z << 4) | (x & 0x0f)
+	if m == nil {
+		return
+	}
+	idx := ((z & 0x0f) << 4) | (x & 0x0f)
 	m[idx>>6] |= uint64(1) << (idx & 0x3f)
 }
 
 // Clear unmarks block at (x, z) in the slice.
 func (m *SliceMask) Clear(x, z int) {
-	idx := (z << 4) | (x & 0x0f)
+	if m == nil {
+		return
+	}
+	idx := ((z & 0x0f) << 4) | (x & 0x0f)
 	m[idx>>6] &^= uint64(1) << (idx & 0x3f)
 }
 
 // Get checks whether block at (x, z) is marked in the slice.
 func (m SliceMask) Get(x, z int) bool {
-	idx := (z << 4) | (x & 0x0f)
+	idx := ((z & 0x0f) << 4) | (x & 0x0f)
 	return (m[idx>>6] & (uint64(1) << (idx & 0x3f))) != 0
 }
 

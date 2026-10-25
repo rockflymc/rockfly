@@ -184,3 +184,61 @@ func BenchmarkSliceMask_Raycast(b *testing.B) {
 		}
 	}
 }
+
+func TestSliceMask_OutOfBoundsSafety(t *testing.T) {
+	var m SliceMask
+	// Must not panic on out-of-range coordinates
+	m.Set(100, 200)
+	m.Set(-1, -1)
+	m.Clear(-50, 50)
+	_ = m.Get(99, 99)
+	_ = m.Get(-10, -20)
+}
+
+func TestPackedQueue_ZeroValued(t *testing.T) {
+	var q PackedQueue
+	if !q.Empty() {
+		t.Fatal("expected empty queue")
+	}
+	q.Push(PackNode(1, 2, 3, 15, false))
+	if q.Len() != 1 {
+		t.Fatalf("expected len 1, got %d", q.Len())
+	}
+	n, ok := q.Pop()
+	if !ok || n.X() != 1 || n.Y() != 2 || n.Z() != 3 {
+		t.Fatalf("unexpected node: %v, ok=%v", n, ok)
+	}
+}
+
+func TestPackedNode_Clamping(t *testing.T) {
+	n := PackNode(-10, -600, -5, 25, false)
+	if n.X() != 0 || n.Y() != -512 || n.Z() != 0 || n.Level() != 15 {
+		t.Fatalf("expected clamped values (0, -512, 0, 15), got (%d, %d, %d, %d)", n.X(), n.Y(), n.Z(), n.Level())
+	}
+	n2 := PackNode(100, 2000, 100, 10, false)
+	if n2.X() != 63 || n2.Y() != 1535 || n2.Z() != 63 {
+		t.Fatalf("expected clamped values (63, 1535, 63), got (%d, %d, %d)", n2.X(), n2.Y(), n2.Z())
+	}
+}
+
+func TestEngine_ConcurrentSubmitClose(t *testing.T) {
+	for iter := 0; iter < 10; iter++ {
+		eng := NewEngine(2)
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				eng.Submit(LightTask{
+					Type: TaskUpdate,
+					Action: func() {
+						time.Sleep(time.Microsecond)
+					},
+				})
+			}()
+		}
+		time.Sleep(time.Microsecond * 50)
+		eng.Close()
+		wg.Wait()
+	}
+}

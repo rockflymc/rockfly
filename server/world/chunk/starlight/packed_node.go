@@ -29,6 +29,25 @@ const (
 
 // PackNode packs coordinates, light level, and light type into a PackedNode.
 func PackNode(x, y, z int, level uint8, isSky bool) PackedNode {
+	if x < 0 {
+		x = 0
+	} else if x > 63 {
+		x = 63
+	}
+	if y < -512 {
+		y = -512
+	} else if y > 1535 {
+		y = 1535
+	}
+	if z < 0 {
+		z = 0
+	} else if z > 63 {
+		z = 63
+	}
+	if level > 15 {
+		level = 15
+	}
+
 	v := PackedNode(x&maskX) |
 		(PackedNode((y+YOffset)&maskY) << 6) |
 		(PackedNode(z&maskZ) << 17) |
