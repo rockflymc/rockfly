@@ -137,3 +137,30 @@ func BenchmarkAsyncWriter_QueueWrite(b *testing.B) {
 		_ = writer.QueueWrite(pos, world.Overworld, col)
 	}
 }
+
+func TestAsyncReader_ConcurrentClose(t *testing.T) {
+	reader := mcdb.NewAsyncReader(nil, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			reader.QueueRead(world.ChunkPos{int32(idx), 0}, world.Overworld, func(col *chunk.Column, err error) {})
+		}(i)
+	}
+	reader.Close()
+	wg.Wait()
+}
+
+func TestAsyncWriter_NilSafety(t *testing.T) {
+	var writer *mcdb.AsyncWriter
+	if err := writer.QueueWrite(world.ChunkPos{0, 0}, world.Overworld, nil); err == nil {
+		t.Fatal("expected error on nil writer QueueWrite")
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatalf("expected nil error on nil writer Flush, got %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("expected nil error on nil writer Close, got %v", err)
+	}
+}
