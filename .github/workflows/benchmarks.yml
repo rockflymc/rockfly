@@ -21,16 +21,16 @@ jobs:
           go-version-file: go.mod
 
       - name: Benchmark Spatial Hash Entity Queries
-        run: go test -v -run=^$ -bench=BenchmarkSpatialHash ./server/entity/... -benchmem || true
+        run: go test -v -run=^$ -bench=BenchmarkSpatialGrid ./server/world/... -benchmem
 
       - name: Benchmark Starlight Light Propagation
-        run: go test -v -run=^$ -bench=BenchmarkStarlight ./server/world/... -benchmem || true
+        run: go test -v -run=^$ -bench=BenchmarkStarlight ./server/world/chunk/starlight/... -benchmem
 
       - name: Benchmark SIMD Noise Evaluation
-        run: go test -v -run=^$ -bench=BenchmarkNoise ./server/world/generator/... -benchmem || true
+        run: go test -v -run=^$ -bench=BenchmarkOctave ./server/world/generator/noise/... -benchmem
 
       - name: Benchmark Hopper Optimization Sleep Cycles
-        run: go test -v -run=^$ -bench=BenchmarkHopper ./server/block/... -benchmem || true
+        run: go test -v -run=^$ -bench=BenchmarkHopper ./server/block/... -benchmem
 
       - name: Benchmark TypeScript Transpilation Speed (<5ms)
         run: go test -v -run=TestTranspiler_TranspileSpeed ./server/plugin/ts/...

@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const (
+var (
 	CLIVersion = "1.0.0"
 )
 

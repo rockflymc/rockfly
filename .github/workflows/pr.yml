@@ -33,6 +33,7 @@ jobs:
       - name: Verify Root & CLI Builds
         run: |
           go build -v ./cmd/rockfly
+          go build -v ./cmd/rockfly-cli
           go build -v .
 
   lint-and-codegen:
@@ -83,4 +84,6 @@ jobs:
           GOOS: ${{ matrix.target.os }}
           GOARCH: ${{ matrix.target.arch }}
         run: |
+          mkdir -p dist
           go build -v -o "dist/rockfly-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}" ./cmd/rockfly
+          go build -v -o "dist/rockfly-cli-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.ext }}" ./cmd/rockfly-cli
