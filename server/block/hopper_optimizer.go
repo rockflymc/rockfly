@@ -100,27 +100,39 @@ func (HopperOptimizer) PutToSleepFullTarget(pos cube.Pos, currentTick int64) {
 
 // CheckSuctionOcclusion checks if the block above pos completely occludes item suction.
 func (HopperOptimizer) CheckSuctionOcclusion(pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil {
+		return false
+	}
 	abovePos := pos.Side(cube.FaceUp)
+	if abovePos.OutOfBounds(tx.Range()) {
+		return true
+	}
 	aboveBlock := tx.Block(abovePos)
 
 	// If block above is a solid full block, suction is completely blocked
-	if aboveBlock.Model().FaceSolid(abovePos, cube.FaceDown, tx) &&
-		aboveBlock.Model().FaceSolid(abovePos, cube.FaceUp, tx) {
-		st := getHopperState(pos)
-		st.suctionBlocked = true
-		return true
-	}
+	blocked := aboveBlock.Model().FaceSolid(abovePos, cube.FaceDown, tx) &&
+		aboveBlock.Model().FaceSolid(abovePos, cube.FaceUp, tx)
 
 	st := getHopperState(pos)
-	st.suctionBlocked = false
-	return false
+	hopperStatesMu.Lock()
+	st.suctionBlocked = blocked
+	hopperStatesMu.Unlock()
+
+	return blocked
 }
 
 // CollectDroppedItems searches for dropped Item entities directly above the hopper
 // and inserts them into the hopper's inventory, respecting stack limits and suction occlusion.
 func (HopperOptimizer) CollectDroppedItems(h Hopper, pos cube.Pos, tx *world.Tx) bool {
+	if tx == nil || h.inventory == nil {
+		return false
+	}
+
 	st := getHopperState(pos)
-	if st.suctionBlocked {
+	hopperStatesMu.RLock()
+	blocked := st.suctionBlocked
+	hopperStatesMu.RUnlock()
+	if blocked {
 		return false
 	}
 

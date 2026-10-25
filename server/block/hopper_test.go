@@ -117,6 +117,28 @@ func TestHopperOptimizer_EmptyAndFullTargetSleep(t *testing.T) {
 	}
 }
 
+func TestHopperOptimizer_NilAndBoundarySafety(t *testing.T) {
+	optimizer := HopperOptimizer{}
+	pos := cube.Pos{0, 64, 0}
+
+	// 1. Nil Tx safety
+	if optimizer.CheckSuctionOcclusion(pos, nil) {
+		t.Fatal("expected false on nil Tx CheckSuctionOcclusion")
+	}
+	if optimizer.CollectDroppedItems(Hopper{}, pos, nil) {
+		t.Fatal("expected false on nil Tx CollectDroppedItems")
+	}
+
+	// 2. Uninitialized Hopper (nil inventory) safety
+	w := newTestWorld()
+	defer w.Close()
+	w.Do(func(tx *world.Tx) {
+		if optimizer.CollectDroppedItems(Hopper{}, pos, tx) {
+			t.Fatal("expected false on uninitialized Hopper CollectDroppedItems")
+		}
+	}).Wait(context.Background())
+}
+
 func BenchmarkHopperOptimizer_5000IdleHoppers(b *testing.B) {
 	optimizer := HopperOptimizer{}
 	positions := make([]cube.Pos, 5000)
