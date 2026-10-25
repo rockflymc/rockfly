@@ -18,14 +18,14 @@ type PlayerAuthInputHandler struct{}
 // Handle ...
 func (h PlayerAuthInputHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) error {
 	pk := p.(*packet.PlayerAuthInput)
-	if err := h.handleMovement(pk, s, c); err != nil {
+	if err := h.handleMovement(pk, s, tx, c); err != nil {
 		return err
 	}
 	return h.handleActions(pk, s, tx, c)
 }
 
 // handleMovement handles the movement part of the packet.PlayerAuthInput.
-func (h PlayerAuthInputHandler) handleMovement(pk *packet.PlayerAuthInput, s *Session, c Controllable) error {
+func (h PlayerAuthInputHandler) handleMovement(pk *packet.PlayerAuthInput, s *Session, tx *world.Tx, c Controllable) error {
 	yaw, pitch := c.Rotation().Elem()
 	pos := c.Position()
 
@@ -58,6 +58,15 @@ func (h PlayerAuthInputHandler) handleMovement(pk *packet.PlayerAuthInput, s *Se
 				return nil
 			}
 			s.teleportPos.Store(nil)
+		}
+	}
+
+	// Server-Authoritative Movement Validation:
+	if s.movementValidator != nil && !mgl64.FloatEqual(deltaPos.Len(), 0) {
+		if valid, reason := s.movementValidator.Validate(c, tx, pos, newPos); !valid {
+			s.conf.Log.Debug("process packet: PlayerAuthInput: movement rejected, reconciling", "reason", reason, "from", pos, "to", newPos)
+			s.movementValidator.Reconcile(s, c, pos)
+			return nil
 		}
 	}
 
