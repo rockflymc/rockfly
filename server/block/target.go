@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	_ world.Block                  = Target{}
-	_ world.Item                   = Target{}
-	_ world.ScheduledTicker        = Target{}
-	_ world.RedstonePowerSource    = Target{}
+	_ world.Block                     = Target{}
+	_ world.Item                      = Target{}
+	_ world.ScheduledTicker           = Target{}
+	_ world.RedstonePowerSource       = Target{}
 	_ world.RedstoneStrongPowerSource = Target{}
-	_ world.RedstoneWeakBlockPowerer = Target{}
+	_ world.RedstoneWeakBlockPowerer  = Target{}
 
-	targetMu      sync.RWMutex
+	targetMu       sync.RWMutex
 	targetPowerMap = make(map[cube.Pos]int)
 )
 
