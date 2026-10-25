@@ -43,6 +43,9 @@ func NewPistonSolver(tx *world.Tx, pistonPos cube.Pos, facing cube.Face, pull bo
 // Solve calculates the affected blocks and executes the movement if possible.
 // Returns true if the operation succeeds, or false if blocked by an immovable block or exceeding push limits.
 func (s *PistonSolver) Solve() bool {
+	if s == nil || s.tx == nil || s.pistonPos.OutOfBounds(s.tx.Range()) {
+		return false
+	}
 	if s.pull {
 		if !s.calculatePull() {
 			return false
@@ -66,6 +69,9 @@ func (s *PistonSolver) Solve() bool {
 // calculatePush traces the push chain and adhesion networks for piston extension.
 func (s *PistonSolver) calculatePush() bool {
 	headPos := s.pistonPos.Side(s.facing)
+	if headPos.OutOfBounds(s.tx.Range()) {
+		return false
+	}
 	firstBlock := s.tx.Block(headPos)
 	if firstBlock == nil || isPushReplaceable(firstBlock) {
 		return true
@@ -109,6 +115,9 @@ func (s *PistonSolver) calculatePush() bool {
 
 		// 1. Block directly ahead in moveDir is pushed forward.
 		frontPos := pos.Side(s.moveDir)
+		if frontPos == s.pistonPos || frontPos.OutOfBounds(s.tx.Range()) {
+			return false
+		}
 		if !s.visited[frontPos] {
 			s.visited[frontPos] = true
 			queue = append(queue, frontPos)
@@ -118,7 +127,7 @@ func (s *PistonSolver) calculatePush() bool {
 		if isSlime(b) || isHoney(b) {
 			for _, face := range cube.Faces() {
 				adjPos := pos.Side(face)
-				if s.visited[adjPos] {
+				if adjPos == s.pistonPos || adjPos.OutOfBounds(s.tx.Range()) || s.visited[adjPos] {
 					continue
 				}
 				adjBlock := s.tx.Block(adjPos)
@@ -154,6 +163,9 @@ func (s *PistonSolver) calculatePush() bool {
 func (s *PistonSolver) calculatePull() bool {
 	armPos := s.pistonPos.Side(s.facing)
 	targetPos := armPos.Side(s.facing)
+	if armPos.OutOfBounds(s.tx.Range()) || targetPos.OutOfBounds(s.tx.Range()) {
+		return true
+	}
 
 	b := s.tx.Block(targetPos)
 	if b == nil || isPushReplaceable(b) || isDestroyableOnPush(b) || isImmovable(s.tx, targetPos, b) {
@@ -191,7 +203,7 @@ func (s *PistonSolver) calculatePull() bool {
 
 		// Destination check for this block.
 		destPos := pos.Side(s.moveDir)
-		if destPos == s.pistonPos {
+		if destPos == s.pistonPos || destPos.OutOfBounds(s.tx.Range()) {
 			s.toMove = nil
 			return true
 		}
@@ -207,7 +219,7 @@ func (s *PistonSolver) calculatePull() bool {
 		if isSlime(curr) || isHoney(curr) {
 			for _, face := range cube.Faces() {
 				adjPos := pos.Side(face)
-				if s.visited[adjPos] {
+				if adjPos == s.pistonPos || adjPos == armPos || adjPos.OutOfBounds(s.tx.Range()) || s.visited[adjPos] {
 					continue
 				}
 				adjBlock := s.tx.Block(adjPos)
@@ -245,16 +257,20 @@ type movedBlock struct {
 
 // executeMove shifts all blocks in s.toMove into their destination positions.
 func (s *PistonSolver) executeMove() {
-	if len(s.toMove) == 0 {
+	if s.tx == nil || len(s.toMove) == 0 {
 		return
 	}
-
+	r := s.tx.Range()
 	saved := make([]movedBlock, 0, len(s.toMove))
 	for _, pos := range s.toMove {
+		target := pos.Side(s.moveDir)
+		if pos.OutOfBounds(r) || target.OutOfBounds(r) {
+			continue
+		}
 		b := s.tx.Block(pos)
 		saved = append(saved, movedBlock{
 			pos:    pos,
-			target: pos.Side(s.moveDir),
+			target: target,
 			block:  b,
 		})
 	}
@@ -337,19 +353,33 @@ func isDestroyableOnPush(b world.Block) bool {
 
 // isImmovable returns true if a block cannot be moved by pistons under any circumstances.
 func isImmovable(tx *world.Tx, pos cube.Pos, b world.Block) bool {
+	if b == nil {
+		return true
+	}
 	if imm, ok := b.(interface{ PistonImmovable() bool }); ok {
 		return imm.PistonImmovable()
 	}
+	// Container blocks with inventory state are protected from displacement
+	// to prevent item duplication or inventory desynchronization.
+	if _, ok := b.(Container); ok {
+		return true
+	}
 	switch v := b.(type) {
 	case Bedrock, Obsidian, ReinforcedDeepslate, Barrier, EndPortal, EndPortalFrame, Portal:
+		return true
+	case Beacon:
 		return true
 	case PistonArm:
 		return true
 	case Piston:
 		// Extended pistons cannot be moved.
-		headPos := pos.Side(v.Facing)
-		if arm, ok := tx.Block(headPos).(PistonArm); ok && arm.Facing == v.Facing {
-			return true
+		if tx != nil {
+			headPos := pos.Side(v.Facing)
+			if !headPos.OutOfBounds(tx.Range()) {
+				if arm, ok := tx.Block(headPos).(PistonArm); ok && arm.Facing == v.Facing {
+					return true
+				}
+			}
 		}
 	}
 	return false
@@ -375,6 +405,9 @@ func isGlazedTerracotta(b world.Block) bool {
 
 // destroyBlock breaks a block, drops its items, and clears it to Air.
 func destroyBlock(tx *world.Tx, pos cube.Pos) {
+	if tx == nil || pos.OutOfBounds(tx.Range()) {
+		return
+	}
 	b := tx.Block(pos)
 	if b == nil || isPushReplaceable(b) {
 		return
