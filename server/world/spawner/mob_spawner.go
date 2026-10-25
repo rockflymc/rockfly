@@ -55,15 +55,24 @@ type MobSpawner struct {
 	caps           MobCapSettings
 	minSpawnRadius float64
 	maxSpawnRadius float64
+	ppms           *PPMSEngine
 }
 
 // NewMobSpawner initializes a MobSpawner with default Bedrock caps and distance bounds.
 func NewMobSpawner(caps MobCapSettings) *MobSpawner {
+	conf := DefaultPPMSConfig()
+	conf.Caps = caps
 	return &MobSpawner{
 		caps:           caps,
 		minSpawnRadius: 24.0, // Minimum 24 blocks from any player
 		maxSpawnRadius: 54.0, // Maximum 54 blocks (simulation distance 4 ring)
+		ppms:           NewPPMSEngine(conf),
 	}
+}
+
+// PPMS returns the Per-Player Mob Spawner engine.
+func (s *MobSpawner) PPMS() *PPMSEngine {
+	return s.ppms
 }
 
 // Caps returns the active category capacity configuration.
