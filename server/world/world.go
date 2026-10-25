@@ -16,6 +16,7 @@ import (
 	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/internal/sliceutil"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/chunk/starlight"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
@@ -81,6 +82,7 @@ type World struct {
 	scheduledUpdates *scheduledTickQueue
 	redstone         *redstoneEngine
 	ticketManager    *chunk.TicketManager
+	lightingEngine   *starlight.Engine
 	neighbourUpdates []neighbourUpdate
 
 	viewerMu sync.Mutex
@@ -154,6 +156,11 @@ func (w *World) ChunkState(pos ChunkPos) chunk.ChunkState {
 		return chunk.StateEntityTicking
 	}
 	return w.ticketManager.State(chunk.Pos(pos))
+}
+
+// LightingEngine returns the asynchronous Starlight lighting engine of the World.
+func (w *World) LightingEngine() *starlight.Engine {
+	return w.lightingEngine
 }
 
 // execFunc is a function that performs a synchronised transaction on a World.
@@ -1289,6 +1296,9 @@ func (w *World) close() {
 	close(w.closing)
 	w.running.Wait()
 	w.chunkWorkers.wg.Wait()
+	if w.lightingEngine != nil {
+		w.lightingEngine.Close()
+	}
 
 	close(w.queueClosing)
 	w.queueing.Wait()

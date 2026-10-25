@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/dragonfly/server/world/chunk/starlight"
 )
 
 type blockRegistrySetter interface {
@@ -149,6 +150,7 @@ func (conf Config) New() *World {
 	}
 	w := &World{
 		ticketManager:    chunk.NewTicketManager(200),
+		lightingEngine:   starlight.NewEngine(conf.ChunkLoadWorkers),
 		scheduledUpdates: newScheduledTickQueue(s.CurrentTick),
 		redstone:         newRedstoneEngine(s.CurrentTick),
 		entities:         make(map[*EntityHandle]ChunkPos),
