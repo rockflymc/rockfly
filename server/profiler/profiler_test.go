@@ -84,6 +84,36 @@ func TestProfiler_Reset(t *testing.T) {
 	}
 }
 
+func TestProfiler_NilAndZeroSafety(t *testing.T) {
+	var nilProf *Profiler
+	nilProf.Record("Test", 10*time.Millisecond)
+	fn := nilProf.Time("Test")
+	fn()
+	nilProf.RecordTick()
+	nilProf.Reset()
+	rep := nilProf.GenerateReport()
+	if rep.TPS1m != 20.0 {
+		t.Fatalf("expected 20.0 TPS from nil profiler")
+	}
+	jsonBytes, err := nilProf.ExportJSON()
+	if err != nil || len(jsonBytes) == 0 {
+		t.Fatalf("expected valid JSON from nil profiler")
+	}
+	text := nilProf.FormatText()
+	if len(text) == 0 {
+		t.Fatalf("expected non-empty formatted text from nil profiler")
+	}
+
+	zeroProf := &Profiler{}
+	zeroProf.Record("SubsystemA", -5*time.Millisecond)
+	zeroProf.RecordTick()
+	rep2 := zeroProf.GenerateReport()
+	if len(rep2.Subsystems) != 1 || rep2.Subsystems[0].TotalDuration != 0 {
+		t.Fatalf("expected negative duration to be clamped to 0")
+	}
+	zeroProf.Reset()
+}
+
 func BenchmarkProfiler_Record(b *testing.B) {
 	prof := NewProfiler()
 	dur := 5 * time.Millisecond
