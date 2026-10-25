@@ -80,6 +80,24 @@ func (HopperOptimizer) PutToSleep(pos cube.Pos, currentTick int64, sleepTicks in
 	st.sleepUntil = currentTick + sleepTicks
 }
 
+// PutToSleepEmpty sets the hopper into an empty/idle sleep cycle (8 ticks).
+func (HopperOptimizer) PutToSleepEmpty(pos cube.Pos, currentTick int64) {
+	st := getHopperState(pos)
+	hopperStatesMu.Lock()
+	defer hopperStatesMu.Unlock()
+	st.sourceEmpty = true
+	st.sleepUntil = currentTick + 8
+}
+
+// PutToSleepFullTarget sets the hopper into a full-target container sleep cycle (80 ticks).
+func (HopperOptimizer) PutToSleepFullTarget(pos cube.Pos, currentTick int64) {
+	st := getHopperState(pos)
+	hopperStatesMu.Lock()
+	defer hopperStatesMu.Unlock()
+	st.destFull = true
+	st.sleepUntil = currentTick + 80
+}
+
 // CheckSuctionOcclusion checks if the block above pos completely occludes item suction.
 func (HopperOptimizer) CheckSuctionOcclusion(pos cube.Pos, tx *world.Tx) bool {
 	abovePos := pos.Side(cube.FaceUp)

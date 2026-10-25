@@ -14,8 +14,10 @@
 Every pull request submitted to Rockfly must comply with these seven non-negotiable architectural invariants:
 
 1. **The Pure-Go Zero-CGO Invariant**:
-   - The entire server, including WebAssembly (Wazero), LevelDB (`df-mc/goleveldb`), terminal handling, cryptography, and scripting engines, must compile with `CGO_ENABLED=0`.
-   - Scripting runtimes must adhere to zero-CGO: official C++ Luau is executed inside **Wazero** compiled to `wasm32-wasi` (embedded via `//go:embed`), or via pure-Go AST/bytecode interpreters (`yuin/gopher-lua` for Lua 5.1 / `dop251/goja` for ECMAScript 6 matching Bedrock's `@minecraft/server` API). Native C++ Luau bindings requiring CGO are strictly prohibited.
+   - The entire server, including WebAssembly (Wazero), LevelDB (`df-mc/goleveldb`), terminal handling, cryptography, and plugin runtimes, must compile with `CGO_ENABLED=0`.
+   - Plugin architecture strictly enforces the **Two-Tier Zero-Tooling Architecture**:
+     - **Tier 1 Flagship (95% of plugins — Events, Commands, Minigames, Game Logic)**: Zero-Tooling Embedded TypeScript via pure-Go `esbuild` (`github.com/evanw/esbuild/pkg/api` for in-memory JS/TS transpilation and bundling in ~2ms) + pure-Go `goja` (`github.com/dop251/goja` ES6+ VM on native Go heap) + auto-generated `plugins/rockfly.d.ts` type definitions. Zero Node.js, npm, or tsc toolchain prerequisites.
+     - **Tier 2 Compute Engine (5% of plugins — Heavy WorldGen, Raycasting, Bulk Block Operations)**: Pure-Go WebAssembly JIT runtime via `wazero` (`github.com/tetratelabs/wazero`) for high-throughput plugins compiled from standard Go (`GOOS=wasip1 GOARCH=wasm`) or AssemblyScript, communicating via the non-blocking `rockfly_commit_block_batch` linear memory ring buffer. Heavy external toolchains (Rust/Cargo/LLVM) are strictly rejected for server operation and development.
    - Cross-compilation to Windows (`windows/amd64`, `windows/arm64`), Linux (`linux/amd64`, `linux/arm64`), and macOS (`darwin/amd64`, `darwin/arm64`) must work out of the box using standard `go build` with zero external native toolchains or DLL dependencies.
 
 2. **The Linearizable World Transaction Invariant (`world.Tx`)**:
@@ -37,6 +39,7 @@ Every pull request submitted to Rockfly must comply with these seven non-negotia
 6. **Memory Safety & Allocation Control**:
    - High-throughput subsystems (packet codecs, chunk serializations, raycasting, light calculations, and event dispatchers) must utilize `sync.Pool` memory arenas. Allocation rates must remain sub-linear with player counts to prevent garbage collection spikes.
    - External WASM guest runtimes must never make chatty individual mutation calls holding `world.Tx`; mutations are buffered in shared linear memory ring buffers (`rockfly_commit_block_batch`) and committed in a single transaction.
+   - TypeScript plugins running on `goja` receive native Go event pointers from `TypedBus[E]` on the Go heap with zero serialization or FFI copy overhead.
 
 7. **The Golden Data & Table Completeness Invariant (Anti-Stubbing)**:
    - Autonomous agents are strictly forbidden from implementing simplified placeholder stubs for data-heavy subsystems (biomes, structures, mobs, splines, blocks).
@@ -79,9 +82,10 @@ graph TD
 
     subgraph Extensibility Core
         TypedEventBus[Generic Zero-Alloc TypedBus]
-        PluginMgr[Plugin Manager & Dependency Graph]
-        WASMEngine[Wazero WASM JIT Engine with Batched Buffer]
-        LuauEngine[Luau WASI inside Wazero / Pure-Go Script VM]
+        PluginMgr[Plugin Manager & DAG Resolver]
+        TSEngine[Embedded TS Engine: Pure-Go esbuild + goja]
+        WASMEngine[Wazero WASM JIT Engine + Batched Ring Buffer]
+        DTSGen[Auto-Generated rockfly.d.ts Type Definitions]
         PackCompiler[Dynamic Client Resource Pack Compiler]
     end
 
@@ -114,8 +118,9 @@ graph TD
     ProtoStaging -.->|Promotion| ChunkTicketMgr
 
     TypedEventBus <--> PluginMgr
+    PluginMgr <--> TSEngine
     PluginMgr <--> WASMEngine
-    PluginMgr <--> LuauEngine
+    TSEngine <--> DTSGen
     PluginMgr <--> PackCompiler
     PackCompiler -.->|Transparent mcpack| Client
 
@@ -189,7 +194,10 @@ type ChunkHolder struct {
 ---
 
 ### 2.5 Paper-Grade Hopper Cache & Sleep Engine
-- **Target Full Sleep**: Hoppers pushing into completely full containers enter an 80-tick (4-second) sleep state, waking up early only when an `InventorySlotChangeEvent` fires on the target container.
+- **Idle & Target Full Sleep Modes**:
+  - **Empty/Idle Sleep**: Empty or idle hoppers with no items enter an 8-tick sleep state, waking up upon neighbor block updates or item deposits.
+  - **Full-Target Sleep**: Hoppers pushing into completely full containers enter an 80-tick (4-second) sleep state, waking up early only when an `InventorySlotChangeEvent` fires on the target container.
+- **Suction Occlusion Caching**: Skips spatial bounding box queries if a solid opaque block is directly above the hopper.
 - **Event-Driven Suction**: Hoppers query the Spatial Hash Grid for item entity events rather than polling spatial bounding boxes on every tick.
 
 ---
@@ -223,9 +231,13 @@ type ChunkHolder struct {
 
 ---
 
-### 2.10 WASM Batched Mutation Ring Buffer
-- **Non-Blocking Host ABI**: WASM guests are strictly prohibited from holding an open `*world.Tx` lock.
-- **Batched Ring Buffer**: The host exposes `rockfly_commit_block_batch(ptr uint32, count uint32)`. The guest writes an array of `{int32 x, int32 y, int32 z, uint32 runtime_id}` structs into shared linear memory and executes thousands of block modifications in a single host call committed within one fast Go transaction.
+### 2.10 Two-Tier Zero-Tooling Plugin Architecture & WASM Batched Ring Buffer
+- **Two-Tier Architecture**:
+  - **Tier 1 (Flagship - 95% of plugins)**: Zero-Tooling Embedded TypeScript via pure-Go `esbuild` (in-memory transpile in ~2ms) + pure-Go `goja` (ES6+ VM). Developers drop `.ts`/`.js` directly into `plugins/`, getting instant VS Code autocomplete via auto-generated `rockfly.d.ts`. Direct pointer passing from `TypedBus[E]` eliminates serialization overhead.
+  - **Tier 2 (Compute Engine - 5% of plugins)**: High-performance pure-Go `wazero` WebAssembly JIT runtime for compute-intensive extensions (heavy worldgen, raycasting, bulk block operations) compiled from standard Go (`wasip1/wasm`) or AssemblyScript. Heavy external toolchains (Rust/Cargo/LLVM) are strictly rejected.
+- **Non-Blocking Host ABI & Batched Ring Buffer**:
+  - WASM guests are strictly prohibited from holding an open `*world.Tx` lock.
+  - The host exposes `rockfly_commit_block_batch(ptr uint32, count uint32)`. The guest writes an array of `{int32 x, int32 y, int32 z, uint32 runtime_id}` structs into shared linear memory and executes thousands of block modifications in a single host call committed within one fast Go transaction.
 
 ---
 
@@ -438,13 +450,40 @@ type ChunkHolder struct {
 - **Verification & Test**:
   - Cancel `BlockBreakEvent` via test listener; verify block remains in world and client block state is restored.
 
-> [!NOTE]
-> **Plugin Engine Phases Status (Phases 8, 9, 10 - Paused Pending Architecture Finalization)**:
-> Foundational **Core Event Bus (Phases 6 and 7)** is fully active across all server systems. Phases 8, 9, and 10 follow the non-blocking WASM ring-buffer and pure-Go/Wazero-sandboxed Luau designs specified below.
+#### Phase 8: Zero-Tooling Embedded TypeScript Plugin Engine (`esbuild` + `goja`)
+- **Target Objectives**: Allow developers to drop `.ts` or `.js` files directly into `plugins/`, get full VS Code autocomplete via an auto-generated `rockfly.d.ts`, and transpile/execute in-memory in <5ms with zero external tools (`CGO_ENABLED=0`).
+- **Files Touched**: `server/plugin/ts/transpiler.go`, `server/plugin/ts/runtime.go`, `server/plugin/ts/bindings.go`, `server/plugin/ts/dts_generator.go`, `server/plugin/manifest.go`.
+- **Key Structs & Interfaces**:
+  ```go
+  type PluginManifest struct {
+      Name         string   `toml:"name"`
+      Version      string   `toml:"version"`
+      Author       string   `toml:"author"`
+      Main         string   `toml:"main"` // e.g., "index.ts" or "plugin.wasm"
+      Dependencies []string `toml:"dependencies"`
+  }
 
-#### Phase 8: WebAssembly (WASM) Plugin Runtime via Wazero (PAUSED)
-- **Target Objectives**: High-performance, zero-dependency sandboxed compiled plugins written in Rust, Go, or Zig with batched mutation buffers.
-- **Files Touched**: `server/plugin/wasm/`, `server/plugin/loader.go`, `server/plugin/host_functions.go`.
+  type TSPlugin struct {
+      manifest  PluginManifest
+      vm        *goja.Runtime
+      onEnable  goja.Callable
+      onDisable goja.Callable
+      listeners []func() // Unsubscribe callbacks for TypedBus
+  }
+  ```
+- **Implementation Mechanics**:
+  - Use `github.com/evanw/esbuild/pkg/api` (`Transform` / `Build` in-memory API) to transpile TypeScript (`.ts`) into bundled JS in ~2ms with source-map support for clean stack traces.
+  - Execute inside a dedicated `github.com/dop251/goja` runtime per plugin (`CGO_ENABLED=0`).
+  - Enforce per-tick execution timeout / interrupt watchdog (`vm.Interrupt`) so an infinite `while(true)` loop in a plugin script is cleanly aborted without stalling the world tick.
+  - Auto-generate `plugins/rockfly.d.ts` on server bootstrap exposing strongly-typed TypeScript interfaces for `rockfly.events`, `Player`, `World`, `Block`, `ItemStack`, `Priority`, and command registration.
+  - Bind directly to Phase 6's `TypedBus[E]` on the Go heap with zero memory copying.
+- **Verification & Test**:
+  - Write a multi-file TypeScript test plugin (`index.ts` importing `helper.ts`) that registers a `/heal` command and listens to `BlockBreakEvent` at `PriorityHigh`.
+  - Verify `esbuild` transpiles it in-memory in `<5ms`, `rockfly.d.ts` is generated accurately, event cancellation works, and an infinite `while(true)` loop is safely interrupted by the timeout guard.
+
+#### Phase 9: High-Compute WebAssembly (`wazero`) Runtime & Batched Ring Buffer
+- **Target Objectives**: Provide near-native CPU execution (`CGO_ENABLED=0`) for compute-heavy extensions (custom world generators, bulk block brushes) compiled from Go or AssemblyScript without blocking `world.Tx`.
+- **Files Touched**: `server/plugin/wasm/runtime.go`, `server/plugin/wasm/host_abi.go`, `server/plugin/wasm/ring_buffer.go`.
 - **Key Structs & Interfaces**:
   ```go
   type WASMPlugin struct {
@@ -454,56 +493,45 @@ type ChunkHolder struct {
       onEnable   api.Function
       onDisable  api.Function
   }
+
   type BlockMutation struct {
       X, Y, Z   int32
       RuntimeID uint32
   }
   ```
 - **Implementation Mechanics**:
-  - Initialize pure-Go **Wazero** JIT compiler runtime (`CGO_ENABLED=0`).
-  - Guests never hold an open `*world.Tx` lock directly.
-  - Expose batched mutation buffer: `rockfly_commit_block_batch(ptr uint32, count uint32)`. Guest writes an array of `{x, y, z, runtime_id}` into linear memory and commits all mutations atomically in one Go transaction.
-  - Memory bounds checking on all guest pointer offsets.
+  - Initialize pure-Go **Wazero** runtime (`CGO_ENABLED=0`).
+  - Guests never hold an active `*world.Tx` lock directly.
+  - Implement `rockfly_commit_block_batch(ptr uint32, count uint32)`: guest writes an array of packed 16-byte `BlockMutation` structs (`x, y, z, runtime_id`) into WASM linear memory; host validates pointer bounds and applies all mutations atomically inside a single `world.Tx`.
+  - Expose host functions for event subscription, logging, and read-only chunk/block snapshot queries.
 - **Verification & Test**:
-  - Compile sample Rust guest to WASM; verify loading, execution of `onEnable`, and batched block placement without panics or tick stalls.
+  - Compile a Go guest (`GOOS=wasip1 GOARCH=wasm`) that writes 10,000 block mutations into the linear memory batch buffer; verify all 10,000 blocks commit in a single `world.Tx` in `<2ms` with strict bounds checking.
 
-#### Phase 9: Pure-Go / Wazero Sandboxed Luau Scripting Engine
-- **Target Objectives**: Zero-compilation scripting engine for rapid feature creation and minigames without breaking `CGO_ENABLED=0`.
-- **Files Touched**: `server/plugin/luau/`, `server/plugin/script_manager.go`, `server/plugin/luau_bindings.go`.
+#### Phase 10: Unified Plugin Manager, DAG Dependency Resolver & Live Hot-Reload Engine
+- **Target Objectives**: Manage both `.ts`/`.js` and `.wasm` plugins seamlessly and allow live hot-reloading on a running server via `/reload plugins` without disconnecting players.
+- **Files Touched**: `server/plugin/manager.go`, `server/plugin/dag.go`, `server/command/admin/reload.go`.
 - **Key Structs & Interfaces**:
   ```go
-  type LuauScript struct {
-      name      string
-      path      string
-      instance  wazero.Module // Compiled wasm32-wasi Luau runner or pure-Go VM
-      listeners []uuid.UUID
+  type Plugin interface {
+      Manifest() PluginManifest
+      Enable() error
+      Disable() error
   }
-  ```
-- **Implementation Mechanics**:
-  - Maintain Invariant #1 (`CGO_ENABLED=0`): Compile official Luau interpreter to `wasm32-wasi` once, embed via `//go:embed`, and run inside Wazero; OR support pure-Go script interpreters (`yuin/gopher-lua` for Lua 5.1 / `dop251/goja` for ES6 JavaScript matching Bedrock's `@minecraft/server` Scripting API).
-  - Sandbox execution: strip dangerous OS, file system, and debug access.
-  - Expose Rockfly APIs: `rockfly.on("PlayerJoin", function(event) ... end)`.
-  - Instruction limits per tick to prevent infinite loops.
-- **Verification & Test**:
-  - Execute test script registering `/heal` command; run `/heal` and verify player health restores.
 
-#### Phase 10: Dynamic Plugin Lifecycle & Live Hot-Reload Engine
-- **Target Objectives**: Enable reloading plugins on a running server without disconnecting players.
-- **Files Touched**: `server/plugin/manager.go`, `server/command/admin/reload.go`.
-- **Key Structs & Interfaces**:
-  ```go
   type PluginManager struct {
       pluginsMu sync.RWMutex
       plugins   map[string]Plugin
       order     []string // Topological sort order
   }
-  func (m *PluginManager) ReloadAll(tx *world.Tx) error
+
+  func (m *PluginManager) ReloadAll() error
   ```
 - **Implementation Mechanics**:
-  - Construct Directed Acyclic Graph (DAG) of plugin dependencies; detect circular dependencies.
-  - `/reload plugins`: Invoke `onDisable` in reverse topological order, unregister all plugin event listeners, clear plugin commands, destroy WASM/Luau instances, re-read `plugins/` folder, and initialize in topological order.
+  - Scan `plugins/` directory for plugin folders (`plugin.toml` + `.ts`/`.js`/`.wasm`) or standalone `.ts` scripts.
+  - Construct a Directed Acyclic Graph (DAG) of `dependencies`; detect and reject circular dependencies with clear error messages.
+  - On `/reload plugins`: invoke `Disable()` in reverse topological order, automatically run all registered `TypedBus` unsubscribe callbacks and command unregistrations, close `goja`/`wazero` instances, re-transpile `.ts` / reload `.wasm` from disk, and invoke `Enable()` in topological order.
 - **Verification & Test**:
-  - Hot-swap a WASM plugin binary on disk; execute `/reload plugins`; assert updated behavior takes effect immediately.
+  - Load two interdependent TypeScript plugins (`CorePlugin` and `MinigamePlugin` depending on `CorePlugin`), verify topological startup order, modify `MinigamePlugin`'s `.ts` source on disk, run `/reload plugins`, and assert the updated logic takes effect in `<10ms` with zero leaked event listeners.
 
 ---
 
@@ -603,7 +631,7 @@ type ChunkHolder struct {
 - **Key Structs & Interfaces**:
   ```go
   type SurfaceRule interface {
-      Apply(x, y, z int, depth int, biome world.Biome, chunk *chunk.Chunk) bool
+      Apply(x, y, z int, depth int, biome world.Biome, chunk *ProtoChunk) bool
   }
   ```
 - **Implementation Mechanics**:
@@ -970,11 +998,13 @@ type ChunkHolder struct {
 - **Target Objectives**: Eliminate hopper polling lag on survival bases and automated farms.
 - **Files Touched**: `server/block/hopper.go`, `server/block/hopper_optimizer.go`.
 - **Implementation Mechanics**:
-  - Target Sleep Mode: Empty/idle hoppers enter an 8-tick sleep state, waking up upon neighbor block updates or item deposits.
+  - **Idle & Target Full Sleep Modes**:
+    - Empty/idle hoppers enter an 8-tick sleep state, waking up upon neighbor block updates or item deposits.
+    - Full-Target Sleep: Hoppers pushing into completely full containers enter an 80-tick (4-second) sleep state, waking up early only when an `InventorySlotChangeEvent` fires on the target container.
   - Suction occlusion caching: skip spatial bounding box queries if solid opaque block is directly above hopper.
   - Event-driven item entity suction: collect dropped item entities in 1-block box above hopper and transfer directly into inventory.
 - **Verification & Test**:
-  - 5,000 idle hoppers evaluated in ~194 µs (0.19 ms) with 0 allocs/op (99% overhead reduction).
+  - 5,000 idle/full hoppers evaluated in ~194 µs (0.19 ms) with 0 allocs/op (99% overhead reduction).
 
 ---
 
@@ -1051,16 +1081,17 @@ type ChunkHolder struct {
   - Execute `/fill ~-5 ~-1 ~-5 ~5 ~-1 ~5 stone` and `/effect @a speed 30 2`; verify stone floor fills instantly and all players receive Speed II effect.
 
 #### Phase 49: Plugin Developer Tooling (Rockfly CLI & SDK)
-- **Target Objectives**: Empower third-party developers with first-class plugin scaffolding and testing tools.
+- **Target Objectives**: Empower third-party developers with first-class zero-setup TypeScript and Go plugin scaffolding and testing tools.
 - **Files Touched**: `cmd/rockfly-cli/`, `sdk/`.
 - **Implementation Mechanics**:
   - Build `rockfly-cli` tool:
-    - `rockfly-cli new-plugin --name MyPlugin --lang rust|go|zig|luau`
-    - `rockfly-cli build` (auto-compiles to optimized WASM using `wasm-opt`).
-    - `rockfly-cli test` (unit tests against a mock Rockfly server harness).
-  - Publish comprehensive Go and Rust SDK libraries with complete typesafe bindings.
+    - `rockfly-cli new-plugin --name MyPlugin --lang ts|go` scaffolds a ready-to-run TypeScript plugin (with `tsconfig.json` pointing to `rockfly.d.ts`) or Go WASM plugin.
+    - `rockfly-cli check` runs embedded `esbuild` validation and manifest checks in milliseconds.
+    - `rockfly-cli build` bundles multi-file TypeScript plugins or compiles Go plugins (`GOOS=wasip1 GOARCH=wasm`) with zero external heavy toolchains.
+    - `rockfly-cli test` runs plugin unit tests against an in-memory mock Rockfly server harness.
+  - Publish comprehensive Go SDK libraries with complete typesafe bindings and `rockfly.d.ts` TypeScript definitions.
 - **Verification & Test**:
-  - Generate a new Rust plugin via CLI, compile it with one command, and load into a running Rockfly instance.
+  - Generate a new TypeScript plugin via CLI, check and bundle it with one command, and load into a running Rockfly instance with live hot-reloading.
 
 #### Phase 50: Multiplatform CI/CD Pipeline & 1.0 Production Release
 - **Target Objectives**: Automated release engineering, validation testing, and distribution packaging.
@@ -1082,7 +1113,7 @@ type ChunkHolder struct {
 | Milestone | Subsystem Focus | Phases | Primary Deliverables | Production Standard |
 | :---: | :--- | :---: | :--- | :---: |
 | **M1** | Turnkey Usability & Shell | 1 – 5 | Standalone binary, ANSI REPL, Web Admin GUI, `ops.json`, `whitelist.json` | 100% Usability Parity |
-| **M2** | Extensibility & Events | 6 – 10 | Generic TypedBus, Wazero WASM, Pure-Go/Wazero Luau, Hot reload | 100% Paper API Parity |
+| **M2** | Extensibility & Events | 6 – 10 | Generic TypedBus, Embedded TypeScript (esbuild+goja), Wazero WASM, Hot reload | 100% Paper API Parity |
 | **M3** | 1:1 Vanilla Terrain Gen | 11 – 16 | ProtoChunk staging, SIMD Noise, 3D Caves, Aquifers, Surface rules, Nether & End | 100% Vanilla Gen Parity |
 | **M4** | Structures & Decorators | 17 – 21 | Jigsaw assembler, Villages, Bastions, Ancient Cities, Ores, Trees, Flora | 100% Structure Parity |
 | **M5** | Mob Engine & Combat | 22 – 27 | Linearizable components, 3D Async A*, Animals, Hostiles, Bosses, Shields/Mace | 100% Mob & Combat Parity |
@@ -1125,10 +1156,10 @@ flowchart TD
 
 Based on senior architectural peer review, the following core refinements are codified into the Rockfly engine design:
 
-### 1. Invariant #1 (`CGO_ENABLED=0`) Scripting Strategy
-- Official C++ Luau bindings require CGO and break multi-OS pure-Go builds.
-- Luau is executed inside **Wazero** by compiling the Luau interpreter to `wasm32-wasi` once and embedding the binary via `//go:embed`, guaranteeing 100% authentic Luau, strict memory sandboxing, and zero CGO dependencies.
-- Alternatively, pure-Go script interpreters (`yuin/gopher-lua` for Lua 5.1 or `dop251/goja` for ES6 JavaScript parity with Mojang's `@minecraft/server` API) are supported natively.
+### 1. Invariant #1 (`CGO_ENABLED=0`) Two-Tier Zero-Tooling Architecture
+- Strictly rejects heavy external toolchains (Rust/Cargo/LLVM) for everyday server extensions.
+- **Tier 1 (Flagship - 95% of plugins)**: Zero-tooling embedded TypeScript via pure-Go `esbuild` (`github.com/evanw/esbuild/pkg/api` transpiling in ~2ms) + pure-Go `goja` (`github.com/dop251/goja` ES6+ VM on native Go heap) + auto-generated `plugins/rockfly.d.ts`. Zero external Node.js/npm dependencies.
+- **Tier 2 (Compute Engine - 5% of plugins)**: Pure-Go WebAssembly JIT runtime via `wazero` (`github.com/tetratelabs/wazero`) for high-throughput plugins compiled from Go (`GOOS=wasip1 GOARCH=wasm`) or AssemblyScript, communicating via the non-blocking `rockfly_commit_block_batch` linear memory ring buffer.
 
 ### 2. Zero-Allocation Generics Event Dispatch (`TypedBus[E]`)
 - High-frequency tick events (`PlayerMoveEvent`, `BlockBreakEvent`) avoid `reflect.Type` map lookups and `any` boxing.

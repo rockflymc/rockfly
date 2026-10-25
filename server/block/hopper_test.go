@@ -90,6 +90,33 @@ func TestHopperOptimizer_WakeOnUpdate(t *testing.T) {
 	}
 }
 
+func TestHopperOptimizer_EmptyAndFullTargetSleep(t *testing.T) {
+	optimizer := HopperOptimizer{}
+	emptyPos := cube.Pos{30, 64, 30}
+	fullPos := cube.Pos{40, 64, 40}
+
+	// 1. Empty/idle hopper sleep (8 ticks)
+	optimizer.PutToSleepEmpty(emptyPos, 0)
+	if !optimizer.ShouldSleep(emptyPos, 4) {
+		t.Fatal("expected empty hopper to sleep at tick 4")
+	}
+	if optimizer.ShouldSleep(emptyPos, 9) {
+		t.Fatal("expected empty hopper to wake after 8 ticks (at tick 9)")
+	}
+
+	// 2. Full-target container sleep (80 ticks)
+	optimizer.PutToSleepFullTarget(fullPos, 0)
+	if !optimizer.ShouldSleep(fullPos, 40) {
+		t.Fatal("expected full-target hopper to sleep at tick 40")
+	}
+	if !optimizer.ShouldSleep(fullPos, 79) {
+		t.Fatal("expected full-target hopper to still sleep at tick 79")
+	}
+	if optimizer.ShouldSleep(fullPos, 81) {
+		t.Fatal("expected full-target hopper to wake after 80 ticks (at tick 81)")
+	}
+}
+
 func BenchmarkHopperOptimizer_5000IdleHoppers(b *testing.B) {
 	optimizer := HopperOptimizer{}
 	positions := make([]cube.Pos, 5000)

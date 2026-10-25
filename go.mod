@@ -16,9 +16,9 @@ require (
 	github.com/sandertv/gophertunnel v1.62.0
 	github.com/segmentio/fasthash v1.0.3
 	golang.org/x/exp v0.0.0-20250103183323-7d7fa50e5329
-	golang.org/x/mod v0.32.0
-	golang.org/x/text v0.34.0
-	golang.org/x/tools v0.41.0
+	golang.org/x/mod v0.41.0
+	golang.org/x/text v0.43.0
+	golang.org/x/tools v0.51.0
 )
 
 require (
@@ -27,8 +27,13 @@ require (
 	github.com/df-mc/go-playfab/v2 v2.0.2 // indirect
 	github.com/df-mc/go-xsapi/v2 v2.0.3 // indirect
 	github.com/df-mc/jsonc v1.0.5 // indirect
+	github.com/dlclark/regexp2/v2 v2.8.1 // indirect
+	github.com/dop251/goja v0.0.0-20261024144015-2a9269b6b6de // indirect
+	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/pion/datachannel v1.6.2 // indirect
@@ -47,11 +52,11 @@ require (
 	github.com/pion/turn/v5 v5.0.10 // indirect
 	github.com/sandertv/go-raknet v1.15.2-0.20260705184311-0d1fd09e2cf6 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
