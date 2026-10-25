@@ -19,6 +19,9 @@ func NewCheeseCarver(seed int64) *CheeseCarver {
 
 // IsCave returns true if the subterranean coordinates (x, y, z) fall within a cheese cave chamber.
 func (c *CheeseCarver) IsCave(x, y, z int) bool {
+	if c == nil || c.noise3D == nil {
+		return false
+	}
 	// Cheese caves do not form in high atmosphere or below bedrock floor.
 	if y > 60 || y <= -60 {
 		return false

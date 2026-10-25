@@ -21,6 +21,9 @@ func NewNoodleCarver(seed int64) *NoodleCarver {
 
 // IsCave returns true if (x, y, z) falls within a noodle cave tunnel.
 func (n *NoodleCarver) IsCave(x, y, z int) bool {
+	if n == nil || n.noiseA == nil || n.noiseB == nil {
+		return false
+	}
 	if y > 56 || y <= -58 {
 		return false
 	}

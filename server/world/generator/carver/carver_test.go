@@ -12,7 +12,15 @@ import (
 
 func TestCarverBoundaries(t *testing.T) {
 	world.DefaultBlockRegistry.Finalize()
+
+	var nilCarver *carver.NoiseCarver
+	if nilCarver.ShouldCarve(0, 0, 0) {
+		t.Fatal("expected nil carver ShouldCarve to return false")
+	}
+	nilCarver.CarveChunk(0, 0, nil)
+
 	c := carver.NewNoiseCarver(12345)
+	c.CarveChunk(0, 0, nil)
 
 	// High altitude must never be carved
 	if c.ShouldCarve(0, 100, 0) {
