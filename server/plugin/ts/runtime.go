@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/df-mc/dragonfly/server/cmd"
 	"github.com/df-mc/dragonfly/server/event"
 	"github.com/df-mc/dragonfly/server/plugin/manifest"
 	"github.com/dop251/goja"
@@ -125,6 +126,13 @@ func (p *TSPlugin) Disable() error {
 	}
 	p.listeners = nil
 	p.eventHandlers = nil
+
+	// Clean up dynamic commands registered by this plugin
+	for _, cmdName := range p.commands {
+		cmd.UnregisterByName(cmdName)
+	}
+	p.commands = nil
+
 	p.enabled = false
 
 	if p.onDisable != nil {
@@ -169,8 +177,8 @@ func (p *TSPlugin) callWithTimeout(fn goja.Callable, this goja.Value, args ...go
 
 // VM returns the underlying Goja runtime for inspection or evaluation.
 func (p *TSPlugin) VM() *goja.Runtime {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.vm
 }
 

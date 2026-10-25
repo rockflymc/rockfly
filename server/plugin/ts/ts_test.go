@@ -233,7 +233,7 @@ func TestDTSGenerator(t *testing.T) {
 }
 
 func TestTSPlugin_ConcurrentEventDispatch(t *testing.T) {
-	manifest := plugin.PluginManifest{Name: "ConcurrentPlugin", Version: "1.0.0"}
+	manifest := manifest.PluginManifest{Name: "ConcurrentPlugin", Version: "1.0.0"}
 	p := NewTSPlugin(manifest)
 
 	code := `
@@ -285,7 +285,7 @@ rockfly.events.on("TestEvent", rockfly.Priority.Normal, (e) => {
 }
 
 func TestTSPlugin_DisableCleansListeners(t *testing.T) {
-	manifest := plugin.PluginManifest{Name: "DisableTestPlugin", Version: "1.0.0"}
+	manifest := manifest.PluginManifest{Name: "DisableTestPlugin", Version: "1.0.0"}
 	p := NewTSPlugin(manifest)
 
 	code := `
@@ -326,7 +326,7 @@ rockfly.events.on("CustomEvent", rockfly.Priority.Normal, (e) => {
 }
 
 func TestTSPlugin_PanicRecovery(t *testing.T) {
-	manifest := plugin.PluginManifest{Name: "PanicPlugin", Version: "1.0.0"}
+	manifest := manifest.PluginManifest{Name: "PanicPlugin", Version: "1.0.0"}
 	p := NewTSPlugin(manifest)
 
 	code := `

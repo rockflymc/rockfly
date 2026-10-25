@@ -23,7 +23,8 @@ type pluginEntry struct {
 
 // PluginManager coordinates discovery, DAG dependency resolution, lifecycle, and hot-reload.
 type PluginManager struct {
-	mu sync.RWMutex
+	reloadMu sync.Mutex
+	mu       sync.RWMutex
 
 	pluginsDir string
 	plugins    map[string]Plugin
@@ -321,6 +322,9 @@ func (m *PluginManager) DisableAll() error {
 // ReloadAll performs an atomic, live hot-reload: disables active plugins, closes runtimes,
 // re-scans the plugins directory, resolves DAG dependencies, and enables the new instances.
 func (m *PluginManager) ReloadAll() (int, time.Duration, error) {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+
 	start := time.Now()
 
 	// 1. Disable active plugins in reverse order
